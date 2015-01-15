@@ -2,6 +2,9 @@ Packages required: openni and ee_cart_imped_action
 
 To launch: 
     roslaunch pr2_awesomeness pr2_launch.launch 
+    
+    ** if you're using a simulator **
+    roslaunch pr2_awesomeness pr2_launch.launch sim:=true
 
 To run pick and place
     rosrun pr2_awesomeness pick_and_place.py
