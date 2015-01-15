@@ -215,7 +215,12 @@ class ArmController:
     def cancel_goal(self,whicharm):
         self.control[whicharm].cancelGoal()
         self.control[whicharm].resetGoal()
-     
+    
+    def near_current_pose(self, whicharm, pose):
+        current_pose = self.get_cartesian_pose()[whicharm]
+        #XXX
+        return check_cartesian_near_pose(current_pose, pose, .1, .1, self.tf_listener)
+        
     def cart_movearm(self,whicharm, pose, frame_id, \
             move_duration=5.0, ik_timeout=5.0, blocking=False):
         self.control[whicharm].cancelGoal()
@@ -230,8 +235,10 @@ class ArmController:
         if blocking:
             self.control[whicharm].cancelGoal()
             self.control[whicharm].resetGoal()
-        current_pose =  self.get_cartesian_pose()[whicharm]
-        return check_cartesian_near_pose(current_pose, pose, 0.15, 0.1, self.tf_listener)
+        #XXX current_pose =  self.get_cartesian_pose()[whicharm]
+        #XXX return check_cartesian_near_pose(current_pose, pose, 0.15, 0.1, self.tf_listener)
+        return self.near_current_pose(whicharm, pose)
+
     ## Cartesian Move arm commands
     # pose is a 7 element list
     def cart_movearms(self, poses, frame_id, \
