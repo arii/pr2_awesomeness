@@ -1,8 +1,10 @@
+#!/usr/bin/env python
+#Author: Ariel Anders
+
 import numpy as np
 import rospy
 import roslib; 
 roslib.load_manifest("pr2_awesomeness")
-roslib.load_manifest("ee_cart_imped_action")
 from pr2_common_action_msgs.msg import \
         ArmMoveIKAction, ArmMoveIKGoal, ArmMoveIKActionFeedback
 from geometry_msgs.msg import Pose, Quaternion, Point

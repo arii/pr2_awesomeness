@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# Author: Ariel Anders
+
 import roslib; roslib.load_manifest('pr2_awesomeness')
 import rospy
 from pr2_mechanism_msgs.srv import SwitchController, ListControllers

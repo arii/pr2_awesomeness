@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# Author: Ariel Anders
 
 import roslib
 roslib.load_manifest('pr2_pick_and_place_tutorial')

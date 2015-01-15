@@ -1,3 +1,4 @@
+# author: Ariel Anders
 import roslib; roslib.load_manifest('pr2_awesomeness')
 import rospy 
 import actionlib

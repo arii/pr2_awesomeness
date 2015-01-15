@@ -17,6 +17,7 @@
   <depend package="pr2_arm_move_ik"/>
   <depend package="pr2_controllers_msgs"/>
   <depend package="pr2_gripper_sensor_msgs"/>
+  <depend package="ee_cart_imped_action"/>
 
 </package>
 

@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+#Author: Ariel Anders
+
 import numpy as np
 import rospy
 import roslib; 

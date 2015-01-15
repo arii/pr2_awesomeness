@@ -1,12 +1,9 @@
-roslaunch pr2_awesomeness pr2_launch.launch for running AR tags.  (Will need openni package and ee_cart_imped.)
+Packages required: openni and ee_cart_imped_action
 
+To launch: 
+    roslaunch pr2_awesomeness pr2_launch.launch for running AR tags.  (Will need openni package and ee_cart_imped.)
 
-./pr2_interface will run a program to pick up an object near AR tag id 0 and place the object near
-AR tag 1.
-
-
-This process will fail if the object is too far away and is infeasible to grasp or place.  I would
-look into trying to speed up the pick and place manager from the pr2_pick_and_place_demos package to
-speed up this process. 
+To run pick and place
+    rosrun pr2_awesomeness pick_and_place.py
 
 
