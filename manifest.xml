@@ -1,0 +1,23 @@
+<package>
+  <description brief="pr2_awesomeness">
+
+     pr2_awesomeness
+
+  </description>
+  <author>ari</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/pr2_awesomeness</url>
+  <depend package="pr2_pick_and_place_tutorial"/>
+  <depend package="object_manipulation_msgs"/>
+  <depend package="tabletop_object_detector"/>
+  <depend package="tabletop_collision_map_processing"/>
+  <depend package="geometry_msgs"/>
+  <depend package="ar_track_alvar"/>
+  <depend package="pr2_arm_move_ik"/>
+  <depend package="pr2_controllers_msgs"/>
+  <depend package="pr2_gripper_sensor_msgs"/>
+
+</package>
+
+
