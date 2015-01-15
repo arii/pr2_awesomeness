@@ -1,7 +1,5 @@
-Necessary launch files on robot:
+roslaunch pr2_awesomeness pr2_launch.launch for running AR tags.  (Will need openni package and ee_cart_imped.)
 
-roslaunch pr2_large_indiv.launch for running AR tags.  (Will need openni package installed.)
-roslaunch pr2_pick_and_place_demos pick_and_place_demo.launch  
 
 ./pr2_interface will run a program to pick up an object near AR tag id 0 and place the object near
 AR tag 1.
