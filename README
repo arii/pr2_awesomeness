@@ -1,7 +1,7 @@
 Packages required: openni and ee_cart_imped_action
 
 To launch: 
-    roslaunch pr2_awesomeness pr2_launch.launch for running AR tags.  (Will need openni package and ee_cart_imped.)
+    roslaunch pr2_awesomeness pr2_launch.launch 
 
 To run pick and place
     rosrun pr2_awesomeness pick_and_place.py
