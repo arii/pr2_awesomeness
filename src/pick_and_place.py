@@ -113,22 +113,23 @@ class pick_and_place():
             rospy.loginfo("moving arm over place pose")
             result = self.move_cartesian_step(whicharm,over_pose) 
             
-            if not result:
+            if result:
+
+                rospy.loginfo("guarded move arm to place pose")
+                result = self.guarded_cartesian_move(whicharm, under_pose)
+                
+                if result:
+                    rospy.loginfo("placing can")
+                    self.open_gripper(whicharm)
+            
+                    rospy.loginfo("moving arm up over place pose")
+                    self.move_cartesian_step(whicharm, over_pose)
+                else:
+                    rospy.loginfo("failed doing guarded move")    
+            else:
                 rospy.loginfo("failed moving arm over")
-                return result
 
-            rospy.loginfo("guarded move arm to place pose")
-            result = self.guarded_cartesian_move(whicharm, under_pose)
-
-            if not result:
-                rospy.loginfo("failed doing guarded move")
-                return result
-
-            rospy.loginfo("placing can")
-#from object_manipulator.convert_functions import *
-            self.open_gripper(whicharm)
-
-
+            """
             rospy.loginfo("moving arm up over place pose")
             tmp = False
             for i in range (5):
@@ -140,6 +141,7 @@ class pick_and_place():
                     "over place pose")
             if not tmp:
                 raw_input("can't find over pose")
+            """
 
             self.joint_move_arm_to_side(whicharm)
             rospy.loginfo("place result succes is: %s " % result)
@@ -280,6 +282,9 @@ if __name__=="__main__":
             while not result:
               print "hello!"
               result =  pm.place()
+              if not result:
+                  rospy.loginfo("place failed")
+                  rospy.sleep(.5)
             if not args.continuous:
                 break
 
