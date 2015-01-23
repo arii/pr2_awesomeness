@@ -181,6 +181,25 @@ class ArmController:
         return total_v > .001
 
     ## Joint movement commands
+    def joint_traj_movearm(self, whicharm, joint_angles_list, \
+            move_duration=5, blocking=True):
+        if not self.using_joint_controller[whicharm]:
+            self.pr2_controller_manager.start_controller(whicharm, "joint")
+            self.using_joint_controller[whicharm] = True
+        goal = JointTrajectoryGoal()
+        goal.trajectory.joint_names = self.controllers[whicharm]
+        for joint_angles in joint_angles_list:
+            point = JointTrajectoryPoint()
+            point.positions = joint_angles
+            point.time_from_start=rospy.Duration(move_duration)
+            goal.trajectory.points.append(point)
+        self.joint_client[whicharm].send_goal(goal)
+        if blocking:
+            self.joint_client[whicharm].wait_for_result(rospy.Duration(move_duration))
+            return self.joint_client[whicharm].get_state() >= 3
+
+
+    ## Joint movement commands
     def joint_movearm(self, whicharm, joint_angles, \
             move_duration=5, blocking=True):
         if not self.using_joint_controller[whicharm]:
@@ -209,6 +228,8 @@ class ArmController:
     
     def cart_freeze_arm(self, whicharm):
         curr = self.get_cartesian_pose()
+        if not self.using_joint_controller[whicharm]:
+            self.cancel_goal(whicharm)
         self.cart_movearm(whicharm, curr[whicharm], "base_link")
 
     def freeze_arm(self, whicharm):

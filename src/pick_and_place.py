@@ -29,48 +29,33 @@ class pick_and_place():
         self.joint_move_arm_to_side('l')
         self.default_frame = "base_link"
         self.grasper = ArghGrasp()
-
     """
     ### experimental code
     def pick_up(self, whicharm='l', top_grasp = False):
-        if self.pick_data:
+        rospy.loginfo("pre pickup pose")
+        self.open_gripper(whicharm)
 
-            x,y,z,_,_,_,_ = self.pick_pose
-            if top_grasp:
-                rot = [-.5, .5, .5, .5]
-                over_pos = [x,y,z+.4] + rot
-                under_pos = [x,y,z-.1] + rot
-            else:
-                rot = [1, 0,0,0]
-                over_pos = [x-.1,y,z+.1] + rot
-                front_pos = [x-.3,y,z+.1] + rot
-                under_pos = [x+.1,y,z+.1] + rot
+        first =    [1.042181865195266, 0.05674577918307219, 1.7141703410128142, -1.2368941648991192, 44.01523148337816, -1.3485333030083617, 58.22465995394929]
+        self.ctrl.joint_movearm(whicharm, first)
+        start = [0.6169387251649058, 0.13840014757000843, 0.7266251135486242, 0.7131394766246717, -0.7008370665851971, 0.008851073879117963, 0.013459252242671303]
 
-            self.open_gripper(whicharm) 
-            # move arm above can
-            #raw_input("move arm")
-            rospy.loginfo("moving arm above can")
-            self.move_cartesian_step(whicharm, over_pos)
-            if not top_grasp:
-                self.move_cartesian_step(whicharm,front_pos)
-            #raw_input("guarded move?")
-            rospy.loginfo("moving arm to can")
-            self.guarded_cartesian_move(whicharm, under_pos)
-            raw_input("grasp")
-            rospy.loginfo( "grasping can")
-            self.close_gripper(whicharm)
-            #raw_input("return?")
-            # lift can straight up
-            rospy.loginfo( "lifting can")
-            self.move_cartesian_step(whicharm, over_pos)
-            
-            # move arm to side
-            self.constrained_move_arm_to_side(whicharm)
-            return True
-        else:
-            return False
-            
-    """
+        end = [0.591262509439721, -0.19429620128938668, 0.748909628486445, 0.7368007601058577, -0.6756313110616471, -0.01694214819160356, -0.01897195391107014]
+
+        
+        self.move_cartesian_step(whicharm, start)
+        self.move_cartesian_step(whicharm, end, blocking=False)
+
+        self.ctrl.gripper.start_gripper_event_detector(\
+            whicharm, blocking=True,timeout = 5)
+        self.ctrl.cart_freeze_arm(whicharm)
+        self.close_gripper(whicharm)
+        
+        curr = self.ctrl.get_cartesian_pose()[whicharm]
+        curr[2] += 0.05
+        self.move_cartesian_step(whicharm,curr)
+        self.constrained_move_arm_to_side(whicharm)
+        return True
+    """        
 
 
     def pick_up(self, whicharm='l'):
@@ -89,7 +74,7 @@ class pick_and_place():
         self.pick_data = False
         self.place_data = False
     
-    def place(self, whicharm="l", top_grasp = True, use_offset = True):
+    def place(self, whicharm="l", top_grasp = True, use_offset = False):
         if self.place_data:
             # get place offset from cooler
             if use_offset:
