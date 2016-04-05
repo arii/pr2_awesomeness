@@ -5,17 +5,40 @@ roslib.load_manifest("pr2_awesomeness")
 import ee_cart_imped_action
 import tf
 
-from gripper_controller import GripperController
-
+import actionlib
+from pr2_controllers_msgs.msg import Pr2GripperCommandAction,\
+        Pr2GripperCommandGoal, Pr2GripperCommand
+     
 class Arm:
     def __init__(self):
         self.control= {
                 'l': ee_cart_imped_action.EECartImpedClient("left_arm"),
                 'r': ee_cart_imped_action.EECartImpedClient("right_arm")
                 }
-    
+        self.gripper = {\
+                arm:  actionlib.SimpleActionClient(arm+"_gripper_controller/gripper_action",Pr2GripperCommandAction) for arm in ["l", "r"]
+              }
+        self.gripper['r'].wait_for_server()
+
+        # for gripper listener:
+                
         self.tf_listener = tf.TransformListener()
-    
+
+    def command_gripper(self, whicharm, position, max_effort=-1.0):
+
+        self.gripper[whicharm].send_goal(Pr2GripperCommandGoal(
+                    Pr2GripperCommand(position = position, max_effort = max_effort)))
+        """client.wait_for_result()
+        goal = Pr2GripperCommandGoal()
+        goal.command.position = position
+        goal.command.max_effort = max_effort
+        print self.gripper
+        self.gripper[whicharm].send_goal(goal)
+        #if blocking:
+        #    self.gripper[whicharm].wait_for_result()
+        #    return 
+        """
+
     #return the current Cartesian pose of the gripper
     def return_cartesian_pose(self, whicharm, frame = 'base_link'):
         start_time = rospy.get_rostime()
@@ -64,11 +87,12 @@ class Arm:
 if __name__ == "__main__":
 
     rospy.init_node("simpletest")
-    gc = GripperController()
-    rospy.loginfo("close gripper!")
-    gc.command('r', 0, blocking=False)
+
     arm = Arm()
     rospy.loginfo("getting pose")
+
+    arm.command_gripper('r', 0)
+    arm.command_gripper('l', 0)
     #initialize to get table pose
     init_table = arm.return_cartesian_pose('r', "base_link")
 
@@ -77,7 +101,7 @@ if __name__ == "__main__":
     
     fx,fy,fz = [800]*3  # max stiffness
     ox,oy,oz = [30]*3
-    fz = -1  # force in downard direction
+    fz = -2  # force in downard direction
     states = [False]*6
     states[2] = True # use force control for Z
    

@@ -66,6 +66,7 @@ class GripperController:
             self.client[arm] = actionlib.SimpleActionClient(\
               arm+"_gripper_controller/gripper_action",Pr2GripperCommandAction)
         # for gripper listener:
+        rospy.loginfo("subscribed to gripper controller")
         self.gripper_positions = {}
         self.gripper_efforts = {}
         self.sub = rospy.Subscriber("joint_states", JointState, self.callback)
@@ -132,9 +133,9 @@ class GripperController:
 if __name__=="__main__":
     rospy.init_node("simplegrippertest")
     
-    cg =gripper_controller()
-    raw_input("open gripper?")
-    cg.open("r")
+    cg =GripperController()
+    #raw_input("open gripper?")
+    #cg.open("r")
     raw_input("close gripper?")
     cg.close("r")
     raw_input("check if grasping?")

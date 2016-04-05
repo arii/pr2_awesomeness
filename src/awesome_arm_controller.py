@@ -62,20 +62,22 @@ class cartesian_pose_listener:
     def return_cartesian_pose(self, whicharm, frame = 'base_link'):
         start_time = rospy.get_rostime()
         current_time = rospy.get_rostime()
+        link = "_wrist_roll_link"
+        link = "_gripper_tool_frame"
         while current_time - start_time < rospy.Duration(30.):
             current_time = rospy.get_rostime()
             try:
                 t = self.tf_listener.getLatestCommonTime(\
-                        frame, whicharm+'_wrist_roll_link')
+                        frame, whicharm+link)
                 (trans, rot) = self.tf_listener.lookupTransform(\
-                        frame, whicharm+'_wrist_roll_link', t)
+                        frame, whicharm+link, t)
                 return list(trans) + list(rot)
             except (tf.Exception, tf.ExtrapolationException):
                 rospy.sleep(0.5)
                 current_time = rospy.get_rostime()
                 rospy.logerr(\
                 "waiting for a tf transform between %s and %s"%\
-                (frame, whicharm+'_wrist_roll_link'))
+                (frame, whicharm+link))
         rospy.logerr("return_cartesian_pose waited 10 seconds tf\
                 transform!  Returning None")
         return None
@@ -110,6 +112,7 @@ class joint_listener:
         return self.joint_velocities
 
 
+
 class ArmController:
     def __init__(self, event_detector=False, tf_listener=None):
         if tf_listener == None:
@@ -134,7 +137,7 @@ class ArmController:
 
         self.pr2_controller_manager = Pr2ControllerManager()
         for arm in self.arms:
-            self.pr2_controller_manager.start_controller(arm, "joint")
+            self.pr2_controller_manager.start_controller(arm, "cartesian")
             self.using_joint_controller[arm] = False
         
         
@@ -150,11 +153,7 @@ class ArmController:
         for arm in self.arms:
             self.cart_client[arm] = actionlib.SimpleActionClient(\
                     arm+"_arm_ik", ArmMoveIKAction)
-            self.joint_client[arm] = actionlib.SimpleActionClient(\
-                    arm+"_arm_controller/joint_trajectory_action", \
-                    JointTrajectoryAction)
-            self.controllers[arm] = [arm +name for name in controller_names]
-        rospy.sleep(1)
+
     
     ## Gripper functions
     def open_gripper(self, whicharm):
@@ -172,7 +171,7 @@ class ArmController:
 
     def get_joint_angles(self):
         current_joint_angles = self.jl.get_joint_angles()
-        return current_joint_angles
+    
          
     def is_moving(self, whicharm):
         velocities = self.jl.get_joint_velocities()[whicharm]
@@ -242,17 +241,20 @@ class ArmController:
     def near_current_pose(self, whicharm, pose):
         current_pose = self.get_cartesian_pose()[whicharm]
         #XXX
-        return check_cartesian_near_pose(current_pose, pose, .1, .1, self.tf_listener)
-        
+        return check_cartesian_near_pose(current_pose, pose, .2, .2, self.tf_listener)
+       
+
+
     def cart_movearm(self,whicharm, pose, frame_id, \
             move_duration=5.0, ik_timeout=5.0, blocking=False):
+
         self.control[whicharm].cancelGoal()
         self.control[whicharm].resetGoal()
         if self.using_joint_controller[whicharm]:
             self.pr2_controller_manager.start_controller(whicharm, "cartesian")
             self.using_joint_controller[whicharm]= False
         pose = list(pose) + [500]*3 + [30]*3 + [False]*6 + [move_duration, frame_id]
-
+        print "hi ari moving to pose", pose
         self.control[whicharm].addTrajectoryPoint(*pose)
         self.control[whicharm].sendGoal(wait=blocking)
         if blocking:

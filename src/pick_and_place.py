@@ -73,8 +73,15 @@ class pick_and_place():
     def reset_ar(self):
         self.pick_data = False
         self.place_data = False
-    
-    def place(self, whicharm="l", top_grasp = True, use_offset = False):
+
+    def is_close(self, desired = .664, threshold=.76):
+        x = self.place_pose[0]
+        if x > threshold:
+            return (False, x - desired)
+        else:
+            return (True, 0)
+
+    def place(self, whicharm="l", top_grasp = True, use_offset = True):
         if self.place_data:
             # get place offset from cooler
             if use_offset:
@@ -97,7 +104,8 @@ class pick_and_place():
             print "%s\n%s\n%s"%(place_pose, over_pose, under_pose)
             rospy.loginfo("moving arm over place pose")
             result = self.move_cartesian_step(whicharm,over_pose) 
-            
+            rospy.loginfo("waiting a second before placing")
+            rospy.sleep(1) # wait a second before placing 
             if result:
 
                 rospy.loginfo("guarded move arm to place pose")
@@ -121,7 +129,7 @@ class pick_and_place():
                 if tmp:
                     break
                 tmp = self.move_cartesian_step(whicharm, over_pose)
-                if not tmp:
+                if no`t tmp:
                     rospy.loginfo("having difficulty moving arm up "
                     "over place pose")
             if not tmp:
@@ -257,15 +265,18 @@ if __name__=="__main__":
         rospy.init_node("pick_and_place")
         pm = pick_and_place()
         while True:
+            raw_input("pick")
             result = False
             result = args.place
             while not result:
               result = pm.pick_up()
             result = False
 
+            raw_input("place")
             result = args.pick
             while not result:
               print "hello!"
+              print pm.is_close()
               result =  pm.place()
               if not result:
                   rospy.loginfo("place failed")
