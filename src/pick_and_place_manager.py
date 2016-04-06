@@ -324,10 +324,10 @@ class PickAndPlaceManager():
         currentgoals[whicharm][0] = x
         currentgoals[whicharm][1] = y
         currentgoals[whicharm][2] = z
-        self.move_cartesian_step(whicharm, currentgoals[whicharm], blocking = 1, timeout = 5.0)
+        #self.move_cartesian_step(whicharm, currentgoals[whicharm], blocking = 1, timeout = 5.0)
 
         pos = (x,y,z)
-        quat = (1,0,0,0)
+        quat = (0,0,-(2**.5),2**.5)
         self.tf_broadcaster.sendTransform(pos, quat, rospy.Time.now(), "table", "base_link")
 
         return pos,quat
