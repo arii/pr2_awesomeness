@@ -325,10 +325,15 @@ class PickAndPlaceManager():
         currentgoals[whicharm][1] = y
         currentgoals[whicharm][2] = z
         #self.move_cartesian_step(whicharm, currentgoals[whicharm], blocking = 1, timeout = 5.0)
-
+        # tetris
         pos = (x,y,z)
         quat = (0,0,-(2**.5),2**.5)
         self.tf_broadcaster.sendTransform(pos, quat, rospy.Time.now(), "table", "base_link")
+        x  += .08
+        y -= 0.03
+        pos = (x,y,z)
+        quat = (0,0,-(2**.5),2**.5)
+        self.tf_broadcaster.sendTransform(pos, quat, rospy.Time.now(), "tetris", "base_link")
         """
         pose= self.detected_table.pose.pose
         import pdb; pdb.set_trace()
