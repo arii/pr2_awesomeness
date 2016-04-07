@@ -10,7 +10,7 @@ from pr2_controllers_msgs.msg import Pr2GripperCommandAction,\
         Pr2GripperCommandGoal, Pr2GripperCommand
      
 class Arm:
-    def __init__(self):
+    def __init__(self, tf_listener = None):
         self.control= {
                 'l': ee_cart_imped_action.EECartImpedClient("left_arm"),
                 'r': ee_cart_imped_action.EECartImpedClient("right_arm")
@@ -21,8 +21,10 @@ class Arm:
         self.gripper['r'].wait_for_server()
 
         # for gripper listener:
-                
-        self.tf_listener = tf.TransformListener()
+        if tf_listener== None:
+            self.tf_listener = tf.TransformListener()
+        else:
+            self.tf_listener = tf_listener
 
     def command_gripper(self, whicharm, position, max_effort=-1.0):
 

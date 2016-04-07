@@ -329,6 +329,18 @@ class PickAndPlaceManager():
         pos = (x,y,z)
         quat = (0,0,-(2**.5),2**.5)
         self.tf_broadcaster.sendTransform(pos, quat, rospy.Time.now(), "table", "base_link")
+        """
+        pose= self.detected_table.pose.pose
+        import pdb; pdb.set_trace()
+        raw_input(pose)
+        print pose.position
+        pos = pose.position
+        quat = pose.orientation
+        _pos= pos.x, pos.y, pos.z
+        _quat = quat.x, quat.y, quat.z, quat.w
+        self.tf_broadcaster.sendTransform(_pos, _quat, rospy.Time.now(), "table_pose", "base_link")
+        """ 
+
 
         return pos,quat
 
