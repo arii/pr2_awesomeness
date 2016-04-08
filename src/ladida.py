@@ -115,85 +115,127 @@ def test_hover_corners(arm, ppm):
             arm.cart_movearm('l', [goal], "base_link", True)
 
 
-def get_tetris_traj(arm, ppm, px,py, direction):
+def get_tetris_traj(T, px,py, direction):
 
     W,H =  10.0,20.0
     block_size = 13.0 # mm
 
-    T = get_table(ppm, arm, "tetris")
-
     z_above = 100 # hover over tetris board
     z_down = 20
-    interpolate = 5 
-    min_time = 10.
+    interpolate = 4
+    min_time = 3
     start_time = 3
 
     
     if direction == "down":
         quat = horz
         final_x = px
-        
-        
         final_y = 0
+
+        release =(0, block_size)
 
     elif direction == "up": 
         quat = horz
         final_x = px
         final_y = H
+        release =(0, -block_size)
 
     elif direction == "right":
         quat = vert
         final_x = W
         final_y = py
+        release = (-block_size, 0)
 
     elif direction == "left":
         quat = vert
         final_x = 0
         final_y = py
+        release = (block_size, 0)
 
 
     x_traj = np.linspace(px*block_size, final_x*block_size, interpolate)
     y_traj = np.linspace(py*block_size, final_y*block_size, interpolate)
     
     # determine how much time it should take
-    dist =( (final_x - px )**2 + (final_y - py)**2 )**.5
+    dist =.1*( (final_x - px )**2 + (final_y - py)**2 )**.5
     dist = max(min_time, dist) 
     t_traj = np.linspace(start_time, dist + start_time, interpolate)
     
 
     middle = zip(x_traj, y_traj,  [z_down]*interpolate)
+    middle = [list(a) for a in middle]
     #transform into base link
-    middle = [point_transformed(T, [1e-3*p for p in m]) for m in middle]
-    middle.append(middle[-2]) #back up a bit
-    
-    start  = middle[0]
-    start[2] = z_above # start above
 
-    final = middle[-1]
-    final[2] = z_above # move up
+    middle = [point_transformed(T, [1e-3*p for p in m])[0] for m in middle]
+    middle.append(list(middle[-2])) #back up a bit
+    
+    start_up  =list( middle[0])
+    start_up[2] += z_above*1e-3 # start above
+    start_down = list(middle[0]) # stiff pose to table
+
+
+    #final = list(middle[interpolate/2])
+    #final[2] += z_above*1e-3 # move up
 
     quat = list(quat)
     
+    
     # add start times, quaternions, forces to each pose
-    start = stiff_pose(start + quat) + [start_time]
+    start = [stiff_pose(start_up + quat) + [start_time*.75],
+             stiff_pose(start_down + quat) + [start_time]]
     middle = [push_down(middle[i] + quat ) + [t_traj[i]]\
             for i in range(interpolate)]
-    final = stiff_pose(final + quat) + [min_time + dist + start_time]
+    #final = stiff_pose(final + quat) + [min_time + dist + start_time]
     
-    trajectory = [start] + middle + [final]
-    return trajectory
+    trajectory = start + middle #+ [final]
+    return trajectory, release
 
+   
+def release_traj(arm, T, release):
+    x,y = release
+    z = 100
+    dx,dy,dz = [1e-3*p for p in [x,y,z]]
+    curr_pose = arm.return_cartesian_pose('l', 'tetris')
+    curr_pose[0] += dx
+    curr_pose[1] += dy
+    curr_pose[2] += dz
     
+    return_pos, _  = point_transformed(T, [1e-3*p for p in [x,y,z] ] )
+    curr_rot = arm.return_cartesian_pose('l', 'base_link')[3:]
     
+    goal = stiff_pose( return_pos + curr_rot ) + [1.0]
+    return [goal]
 
+
+def do_tetris_prim(arm, T,prim):
+    x,y, direction = prim
+    goal, release = get_tetris_traj(T, 5,25, "down")
+    arm.cart_movearm('l', goal, 'base_link', True)
+    goal2 = release_traj(arm,T,release)
+    arm.cart_movearm('l', release_traj(arm, T, release), 'base_link', True)
 
 def test_tetris(arm, ppm):
     T = get_table(ppm, arm, "tetris")
     width = 130
     height = 250
-    # 10 x ~20 blocks  a block is about 13 mm
+    # 10 x ~20 blocks get_tetris_traj(arm, ppm, px,py, direction)  a block is about 13 mm
 
-    # hover over tetris board
+
+    prims= [
+            (5,25, "down"),   # push down from top middle (5, 12)
+            (2,4, "right")   # push from bottom left corner to right
+            ]
+
+    for p in prims:
+        do_tetris_prim(arm,T, p)
+    raw_input("repeat?")
+
+    """
+    arm.cart_movearm('l', release_traj(arm, T, release), 'base_link', True)
+
+    # push from side to wall
+    goal, release = get_tetris_traj(T, 2,4, "right")
+    arm.cart_movearm("l", goal, "base_link", True)
     z = 100
     for x in [0, width]:
         for y in [0,height]:
@@ -204,7 +246,7 @@ def test_tetris(arm, ppm):
             arm.cart_movearm('l', [goal], "base_link", True)
             raw_input()
 
-    
+    """
 
 
 def prim_test(arm, ppm):
