@@ -102,6 +102,7 @@ def force_transformed( T, force):
     new_pose = T * offset
     trans, rot = mat_to_pos_and_quat(new_pose)
     return trans,rot
+
 """
 
 def test_hover_corners(arm, ppm):
@@ -274,23 +275,6 @@ def prim_test(arm, ppm):
             [ (70,110, z_above), vert, False],
             ]
     send_poses = [] 
-    """
-    arm.cart_movearm('l', release_traj(arm, T, release), 'base_link', True)
-
-    # push from side to wall
-    goal, release = get_tetris_traj(T, 2,4, "right")
-    arm.cart_movearm("l", goal, "base_link", True)
-    z = 100
-    for x in [0, width]:
-        for y in [0,height]:
-            pos,_ = point_transformed(T, [1e-3*p for p in [x,y,z]])
-            goal = stiff_pose( pos+ list(vert) ) + [2.0]
-            print goal
-
-            arm.cart_movearm('l', [goal], "base_link", True)
-            raw_input()
-
-    """
 
     sum_time = 0
     for i,((x,y,z), quat, pushDown) in enumerate(poses):
@@ -316,6 +300,23 @@ def prim_test(arm, ppm):
     arm.cart_movearm('l', send_poses, "base_link", True)
 
 
+""" TODO
+    bimanual
+    positioning at begining 
+    torso height = 1.0388
+    thing block = (.5, .5, .5, .5)
+
+    pick up sticks!
+
+    localize in corner routine
+    move arm to side out of way
+    use thin left arm
+
+    open cv projection
+
+
+
+"""
 
 if __name__=="__main__":
     rospy.init_node('hello_ari')

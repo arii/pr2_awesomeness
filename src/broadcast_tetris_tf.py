@@ -45,21 +45,23 @@ class TableBroadcaster():
    
     def broadcast_table(self):
         self.lock.acquire()
-        self.find_table()
-        corners= self.update_table_info()
-        x= corners[0,:].min()
-        y= corners[1,:].max()
-        z= corners[2,:].max()
+        corners = self.find_table()
+        if corners != None:
 
-        # tetris
-        pos = (x,y,z)
-        quat = (0,0,-(2**.5),2**.5)
-        self.tf_broadcaster.sendTransform(pos, quat, rospy.Time.now(), "table", "base_link")
-        x  += .08
-        y -= 0.03
-        pos = (x,y,z)
-        quat = (0,0,-(2**.5),2**.5)
-        self.tf_broadcaster.sendTransform(pos, quat, rospy.Time.now(), "tetris", "base_link")
+            x= corners[0,:].min()
+            y= corners[1,:].max()
+            z= corners[2,:].max()
+
+            # tetris
+            pos = (x,y,z)
+            quat = (0,0,-(2**.5),2**.5)
+            self.tf_broadcaster.sendTransform(pos, quat, rospy.Time.now(), "table", "base_link")
+            x  += .08
+            y -= 0.03
+            pos = (x,y,z)
+            quat = (0,0,-(2**.5),2**.5)
+            self.tf_broadcaster.sendTransform(pos, quat, rospy.Time.now(), "tetris", "base_link")
+            rospy.sleep(1.0)
         self.lock.release()
 
 
@@ -74,30 +76,27 @@ class TableBroadcaster():
         det_req.return_clusters = 0
         det_req.return_models = 0
         det_req.num_models = 0
-
+        self.detected_table = None
         #call tabletop detection, get a detection result
-        for try_num in range(3):
-            try:
-                det_res = self.grasper_detect_srv(det_req)
-            except rospy.ServiceException, e:
-                rospy.logerr("error when calling %s: %s"%(self.grasper_detect_name, e))
-                self.throw_exception()
-                return ([], None)        
-            if det_res.detection.result == det_res.detection.SUCCESS:
-                rospy.loginfo("tabletop detection reports success")
-                break
-            else:
-                rospy.logerr("tabletop detection failed with error %s, trying again"%\
-                                 self.tabletop_detection_result_dict[det_res.detection.result])
-        else:
-            rospy.logerr("tabletop detection failed too many times.  Returning.")
-            return ([], None)
+        try:
+            det_res = self.grasper_detect_srv(det_req)
+        except rospy.ServiceException, e:
+            rospy.logerr("error when calling %s: %s"%(self.grasper_detect_name, e))
+            self.throw_exception()
+            return None
 
-        self.detected_table = det_res.detection.table
+        if det_res.detection.result == det_res.detection.SUCCESS:
+            rospy.loginfo("tabletop detection reports success")
+            self.detected_table = det_res.detection.table
+            return self.update_table_info()
+        else:
+            rospy.logerr("tabletop detection failed with error %s, trying again"%\
+                             self.tabletop_detection_result_dict[det_res.detection.result])
+        
+            return None
 
 
     def update_table_info(self):
-
         #find the table's front edge and height
         base_link_pose_stamped = change_pose_stamped_frame(self.tf_listener, self.detected_table.pose, 'base_link')
         table_mat = pose_to_mat(base_link_pose_stamped.pose)
