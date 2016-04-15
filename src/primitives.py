@@ -8,8 +8,8 @@ from argparse import ArgumentParser
 class Primitives:
     block_size = 1e-3 * 13.0 # mm
     W,H = 10.0, 20.0 # tetris grid units
-    z_above = 0.1
-    z_down = 0.02
+    z_above = 0.07
+    z_down = 0.03
     sqr2 = np.sqrt(2.0)/2.0
     sqr7 = np.sqrt(7.0)/4.0
 
@@ -19,14 +19,17 @@ class Primitives:
     rot_l = [sqr7, -.25, -sqr7, -.25]
 
     init_pose = {
-        'r': [-0.73, -0.17, -1.60, -1.46, -32.69, -1.31, -16.94],
-        'l': [ 0.71, -0.04, 1.56, -1.46, -4.72, -1.36, 3.86]}
+        #'r': [-0.73, -0.17, -1.60, -1.46, -32.69, -1.31, -16.94],
+        #'l': [ 0.71, -0.04, 1.56, -1.46, -4.72, -1.36, 3.86]}
+        'l': [ 0.7, 0.0, np.pi/2., -np.pi/2., -np.pi*1.5, -np.pi/2.0, np.pi],
+        'r': [ -0.7, 0.0, -np.pi/2., -np.pi/2., -np.pi*1.5, -np.pi/2.0, np.pi]}
     min_time = 2 
-    max_time = 6.0
+    max_time = 7.0
     frame = 'tetris'
 
     def __init__(self, whicharm='l'):
         self.arm = ArmController()
+        self.arm.command_torso(0.26)
         self.whicharm = whicharm
         self.move_arm_to_side()
       
@@ -35,10 +38,12 @@ class Primitives:
                 3, True)
    
     def lift_arm(self):
+        rospy.sleep(0.1)
         curr_pos  = self.arm.get_cartesian_pose(self.frame)[self.whicharm]
-        curr_pos[2] += self.z_above
-        goal =[ self.stiff_pose(curr_pos, 0.1) + [0.5*self.min_time], 
-                 self.stiff_pose(curr_pos, 0.5) + [self.min_time] ]
+        curr_pos[2] = self.z_above
+        goal =[ self.stiff_pose(curr_pos, 0.1) + [0.25*self.min_time], 
+                 self.stiff_pose(curr_pos, 0.5) + [0.5*self.min_time],
+                 self.stiff_pose(curr_pos, 1.0) + [self.min_time] ]
         self.arm.cart_movearm(self.whicharm, goal , self.frame, True)
    
     def stiff_pose(self, pose, rating = 0.2):
@@ -63,14 +68,14 @@ class Primitives:
     def approach_pose(self, pose):
         curr_pose = self.arm.get_cartesian_pose(self.frame)[self.whicharm]
         time = self.clip_time(10*self.distance_between_two_pts(curr_pose, pose))
-        curr_pose[2] += self.z_above
+        curr_pose[2] = self.z_above
         middle_pose = list(pose)
-        middle_pose[2] += self.z_above
+        middle_pose[2] = self.z_above
 
         traj = [
                 self.stiff_pose(curr_pose, 0.1) + [time*.1],
                 self.stiff_pose(curr_pose, 0.5) + [time*.2],
-                self.stiff_pose(middle_pose, 0.7) + [time*.8],
+                self.stiff_pose(middle_pose, 1.0) + [time*.8],
                 self.free_push(pose) + [time]
                 ]
 
@@ -78,12 +83,14 @@ class Primitives:
 
 
         
-    def do_force_control(self, cmd, timeout=2.0):
+    def do_force_control(self, cmd, timeout=4.0):
         self.approach_pose(cmd[:7])
+        rospy.sleep(0.2)
         ros_timeout = rospy.Time.now() + rospy.Duration(timeout)
         self.arm.cart_movearm(self.whicharm, [cmd + [timeout]], self.frame, False)
+        rospy.sleep(1.0)
         while rospy.Time.now() < ros_timeout:
-            rospy.sleep(0.1)
+            rospy.sleep(0.2)
             if not self.arm.is_moving(self.whicharm):
                 self.arm.cancel_goal(self.whicharm)
                 break
@@ -152,11 +159,11 @@ class Primitives:
         pose =  list(pos) + self.horz
         #use force control
         fx = -7
-        fy =  0 
-        fz = -2
+        fy = 300
+        fz = -3
         #keep gripper rotated
         ox,oy,oz = [30]*3
-        states =[True, True, True] +  [False]*3
+        states =[True, False, True] +  [False]*3
         cmd = list(pose) + [fx,fy,fz,ox,oy,oz] + states 
         self.do_force_control(cmd)
 
@@ -164,24 +171,24 @@ class Primitives:
     def push_right(self, pos):
         pose =  list(pos) + self.vert
         #use force control
-        fx = 0
+        fx = 300
         fy =  -5 
         fz = -2
         #keep gripper rotated
         ox,oy,oz = [30]*3
-        states =[True, True, True] +  [False]*3
+        states =[False, True, True] +  [False]*3
         cmd = list(pose) + [fx,fy,fz,ox,oy,oz] + states 
         self.do_force_control(cmd)
 
     def push_left(self, pos):
         pose =  list(pos) + self.vert
         #use force control
-        fx = 0
+        fx = 300
         fy =  5 
         fz = -2
         #keep gripper rotated
         ox,oy,oz = [30]*3
-        states =[True, True, True] +  [False]*3
+        states =[False, True, True] +  [False]*3
         cmd = list(pose) + [fx,fy,fz,ox,oy,oz] + states 
         self.do_force_control(cmd)
 
@@ -206,19 +213,29 @@ if __name__=="__main__":
  
     tetris = Primitives()
 
-    
     above_center = tetris.convert_xy( (tetris.W/2, tetris.H*1.2))
-    left_corner  = tetris.convert_xy( (tetris.W*.1, tetris.H*.2))
+    left_corner  = tetris.convert_xy( (tetris.W*.1, tetris.H*.1))
     middle_center = tetris.convert_xy( (tetris.W/2, tetris.H/2) )
+    """
+    for i in range(5):
+        # push block to corner
+        tetris.push_down(above_center)
+        tetris.push_right(left_corner)
 
+        tetris.move_arm_to_side()
+        raw_input("next test")
+    """
+    tetris.push_down(above_center)
+    tetris.push_right(left_corner)
 
-    #tetris.push_down(above_center)
-    #tetris.push_right(left_corner)
+    tetris.move_arm_to_side()
+
+    # push block on top of corner block
+    tetris.free_space_push_down(above_center, middle_center)
+    tetris.push_right(middle_center)
+    tetris.right_contact_slide_down(middle_center)
+
     
-    #tetris.free_space_push_down(above_center, middle_center)
-    #tetris.push_right(middle_center)
-
-    tetris.right_contact_slide_right(left_corner)
 
 
 

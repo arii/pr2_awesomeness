@@ -208,7 +208,7 @@ class ArmController:
         velocities = self.jl.get_joint_velocities()[whicharm]
         abs_v = [abs(v) for v in velocities]
         total_v = sum(abs_v)
-        return total_v > .1
+        return total_v > .05
 
     ## Joint movement commands
     def joint_traj_movearm(self, whicharm, joint_angles_list, \

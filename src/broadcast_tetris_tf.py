@@ -37,21 +37,41 @@ class TableBroadcaster():
         for element in dir(TabletopDetectionResult):
             if element[0].isupper():
                 self.tabletop_detection_result_dict[eval('TabletopDetectionResult.'+element)] = element
+        self.pos = None
+        self.thread = threading.Thread(target=self.broadcast_table)
+        self.thread.start()
+        self.start_broadcast_table()
+        
 
-
-        #self.thread = threading.Thread(target=self.broadcast_table)
-        #self.thread.start()
-   
+    
     def broadcast_table(self):
+        quat = (0,0,-(2**.5),2**.5)
         while not rospy.is_shutdown():
-            self.lock.acquire()
+            # tetris
+            if self.pos == None:
+                rospy.sleep(0.5)
+            else:
+                pos = tuple(self.pos)
+                (x,y,z) = pos
+                self.tf_broadcaster.sendTransform(pos, quat, rospy.Time.now(), "table", "base_link")
+                x  += .08
+                y -= 0.03
+                pos = (x,y,z)
+                self.tf_broadcaster.sendTransform(pos, quat, rospy.Time.now(), "tetris", "base_link")
+
+
+    def start_broadcast_table(self):
+        while not rospy.is_shutdown():
+
             corners = self.find_table()
             if corners != None:
 
                 x= corners[0,:].min()
                 y= corners[1,:].max()
                 z= corners[2,:].max()
-
+                self.pos = (x,y,z)
+                rospy.sleep(0.5)
+                """
                 # tetris
                 pos = (x,y,z)
                 quat = (0,0,-(2**.5),2**.5)
@@ -60,11 +80,11 @@ class TableBroadcaster():
                 y -= 0.03
                 pos = (x,y,z)
                 quat = (0,0,-(2**.5),2**.5)
-                #while not rospy.is_shutdown():
-                self.tf_broadcaster.sendTransform(pos, quat, rospy.Time.now(), "tetris", "base_link")
-                rospy.sleep(0.2)
-            self.lock.release()
-
+                reset = rospy.Time.now() + rospy.Duration(0.5)
+                while not rospy.is_shutdown() and ( rospy.Time.now() < reset) :
+                    self.tf_broadcaster.sendTransform(pos, quat, rospy.Time.now(), "tetris", "base_link")
+                    #rospy.sleep(0.05)
+                """
 
          
     ##call tabletop object detection and collision_map_processing 
@@ -120,5 +140,5 @@ if __name__ == '__main__':
 
     rospy.init_node('table_publisher')
     tb = TableBroadcaster()
-    tb.broadcast_table()
+    #tb.broadcast_table()
     rospy.spin() 
