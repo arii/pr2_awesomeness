@@ -11,7 +11,8 @@ from geometry_msgs.msg import Pose, Quaternion, Point
 import actionlib
 from pr2_controllers_msgs.msg import JointTrajectoryAction, \
         JointTrajectoryGoal,JointTrajectoryControllerState,\
-        Pr2GripperCommandAction, Pr2GripperCommandGoal, Pr2GripperCommand
+        Pr2GripperCommandAction, Pr2GripperCommandGoal, Pr2GripperCommand,\
+        SingleJointPositionAction, JointTrajectoryControllerState, SingleJointPositionGoal
 from trajectory_msgs.msg import JointTrajectoryPoint
 import tf
 from pr2_gripper_sensor_msgs.msg import  \
@@ -22,6 +23,25 @@ from gripper_controller import GripperController
 from pr2_controller_manager import Pr2ControllerManager
 import ee_cart_imped_action
 from utils import check_cartesian_near_pose 
+
+
+class torso_controller:
+    def __init__(self):
+        self.pose = None
+        self.client = actionlib.SimpleActionClient('torso_controller/position_joint_action', SingleJointPositionAction)
+        self.sub = rospy.Subscriber("/torso_controller/state", JointTrajectoryControllerState, self.cb_torso)
+
+    def cb_torso(self, msg):
+        self.pose = msg.actual.positions[0]
+    
+    def get_torso_pose(self):
+        return self.pose
+
+    def command_torso(self, pose, blocking=False):
+        g = SingleJointPositionGoal(position = pose)
+        self.client.send_goal(g)
+        if blocking:
+            self.client.wait_for_result()
 
 
 class tool_frame_ik:
@@ -134,12 +154,9 @@ class ArmController:
                 'r': ee_cart_imped_action.EECartImpedClient("right_arm")
                 }
 
+        self.tc = torso_controller()
 
         self.pr2_controller_manager = Pr2ControllerManager()
-        for arm in self.arms:
-            self.pr2_controller_manager.start_controller(arm, "cartesian")
-            self.using_joint_controller[arm] = False
-        
         
         controller_names= [
                 "_shoulder_pan_joint",
@@ -150,10 +167,23 @@ class ArmController:
                 "_wrist_flex_joint",
                 "_wrist_roll_joint"]
 
+        self.controller_names= {}
+        for arm in self.arms:
+            self.joint_client[arm] = actionlib.SimpleActionClient(
+                    '/%s_arm_controller/joint_trajectory_action' % arm,
+                    JointTrajectoryAction)
+            self.joint_client[arm].wait_for_server()
+            self.pr2_controller_manager.start_controller(arm, "cartesian")
+            self.using_joint_controller[arm] = False
+            self.controller_names[arm] = [ arm + x for x in controller_names]
+        
+                
         for arm in self.arms:
             self.cart_client[arm] = actionlib.SimpleActionClient(\
                     arm+"_arm_ik", ArmMoveIKAction)
 
+    def command_torso(self, pose):
+        self.tc.command_torso(pose)
     
     ## Gripper functions
     def open_gripper(self, whicharm):
@@ -171,13 +201,14 @@ class ArmController:
 
     def get_joint_angles(self):
         current_joint_angles = self.jl.get_joint_angles()
+        return current_joint_angles
     
          
     def is_moving(self, whicharm):
         velocities = self.jl.get_joint_velocities()[whicharm]
         abs_v = [abs(v) for v in velocities]
         total_v = sum(abs_v)
-        return total_v > .001
+        return total_v > .1
 
     ## Joint movement commands
     def joint_traj_movearm(self, whicharm, joint_angles_list, \
@@ -205,7 +236,7 @@ class ArmController:
             self.pr2_controller_manager.start_controller(whicharm, "joint")
             self.using_joint_controller[whicharm] = True
         goal = JointTrajectoryGoal()
-        goal.trajectory.joint_names = self.controllers[whicharm]
+        goal.trajectory.joint_names = self.controller_names[whicharm]
         point = JointTrajectoryPoint()
         point.positions = joint_angles
         point.time_from_start=rospy.Duration(move_duration)
@@ -243,9 +274,27 @@ class ArmController:
         #XXX
         return check_cartesian_near_pose(current_pose, pose, .2, .2, self.tf_listener)
        
+    def cart_movearm(self,whicharm, poses, frame_id, blocking=False):
+        self.control[whicharm].cancelGoal()
+        self.control[whicharm].resetGoal()
+        rospy.sleep(.1) 
+        
+        if self.using_joint_controller[whicharm]:
+            self.pr2_controller_manager.start_controller(whicharm, "cartesian")
+            self.using_joint_controller[whicharm]= False
+        
+        for pose in poses:
+            pose = list(pose) + [ frame_id]
+            self.control[whicharm].addTrajectoryPoint(*pose)
+        self.control[whicharm].sendGoal(wait=blocking)
+        
+        if blocking:
+            self.control[whicharm].cancelGoal()
+            self.control[whicharm].resetGoal()
+        return 
 
 
-    def cart_movearm(self,whicharm, pose, frame_id, \
+    def cart_movearm_old(self,whicharm, pose, frame_id, \
             move_duration=5.0, ik_timeout=5.0, blocking=False):
 
         self.control[whicharm].cancelGoal()
@@ -254,14 +303,12 @@ class ArmController:
             self.pr2_controller_manager.start_controller(whicharm, "cartesian")
             self.using_joint_controller[whicharm]= False
         pose = list(pose) + [500]*3 + [30]*3 + [False]*6 + [move_duration, frame_id]
-        print "hi ari moving to pose", pose
         self.control[whicharm].addTrajectoryPoint(*pose)
         self.control[whicharm].sendGoal(wait=blocking)
         if blocking:
             self.control[whicharm].cancelGoal()
             self.control[whicharm].resetGoal()
-        #XXX current_pose =  self.get_cartesian_pose()[whicharm]
-        #XXX return check_cartesian_near_pose(current_pose, pose, 0.15, 0.1, self.tf_listener)
+
         return self.near_current_pose(whicharm, pose)
 
     ## Cartesian Move arm commands

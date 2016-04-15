@@ -15,7 +15,6 @@ class TableBroadcaster():
 
 
     def __init__(self, tf_listener=None):
-        rospy.init_node('table_publisher')
         self.lock = threading.Lock()
 
         self.stereo_camera_frame = rospy.get_param("~stereo_camera_frame", "/head_mount_kinect_rgb_optical_frame")
@@ -26,10 +25,10 @@ class TableBroadcaster():
         if tf_listener==None:
             #start tf listener
             self.tf_listener = tf.TransformListener()
-            self.tf_broadcaster =  tf.TransformBroadcaster()
         else:
             self.tf_listener = tf_listener
 
+        self.tf_broadcaster =  tf.TransformBroadcaster()
       
         #service proxies
         self.grasper_detect_srv = rospy.ServiceProxy(self.grasper_detect_name, TabletopDetection)     
@@ -40,29 +39,31 @@ class TableBroadcaster():
                 self.tabletop_detection_result_dict[eval('TabletopDetectionResult.'+element)] = element
 
 
-        self.thread = threading.Thread(target=self.broadcast_table)
-        self.thread.start()
+        #self.thread = threading.Thread(target=self.broadcast_table)
+        #self.thread.start()
    
     def broadcast_table(self):
-        self.lock.acquire()
-        corners = self.find_table()
-        if corners != None:
+        while not rospy.is_shutdown():
+            self.lock.acquire()
+            corners = self.find_table()
+            if corners != None:
 
-            x= corners[0,:].min()
-            y= corners[1,:].max()
-            z= corners[2,:].max()
+                x= corners[0,:].min()
+                y= corners[1,:].max()
+                z= corners[2,:].max()
 
-            # tetris
-            pos = (x,y,z)
-            quat = (0,0,-(2**.5),2**.5)
-            self.tf_broadcaster.sendTransform(pos, quat, rospy.Time.now(), "table", "base_link")
-            x  += .08
-            y -= 0.03
-            pos = (x,y,z)
-            quat = (0,0,-(2**.5),2**.5)
-            self.tf_broadcaster.sendTransform(pos, quat, rospy.Time.now(), "tetris", "base_link")
-            rospy.sleep(1.0)
-        self.lock.release()
+                # tetris
+                pos = (x,y,z)
+                quat = (0,0,-(2**.5),2**.5)
+                self.tf_broadcaster.sendTransform(pos, quat, rospy.Time.now(), "table", "base_link")
+                x  += .08
+                y -= 0.03
+                pos = (x,y,z)
+                quat = (0,0,-(2**.5),2**.5)
+                #while not rospy.is_shutdown():
+                self.tf_broadcaster.sendTransform(pos, quat, rospy.Time.now(), "tetris", "base_link")
+                rospy.sleep(0.2)
+            self.lock.release()
 
 
          
@@ -91,7 +92,7 @@ class TableBroadcaster():
             return self.update_table_info()
         else:
             rospy.logerr("tabletop detection failed with error %s, trying again"%\
-                             self.tabletop_detection_result_dict[det_res.detection.result])
+                self.tabletop_detection_result_dict[det_res.detection.result])
         
             return None
 
@@ -116,7 +117,8 @@ class TableBroadcaster():
         return transformed_corners
  
 if __name__ == '__main__':
+
+    rospy.init_node('table_publisher')
     tb = TableBroadcaster()
-    while True:
-        tb.broadcast_table()
- 
+    tb.broadcast_table()
+    rospy.spin() 
