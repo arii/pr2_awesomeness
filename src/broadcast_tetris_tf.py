@@ -10,6 +10,8 @@ import scipy
 import threading
 from object_manipulator.convert_functions import change_pose_stamped_frame, pose_to_mat
 
+from vision_stuff import Echo
+
 ##Manager for pick and place actions
 class TableBroadcaster():
 
@@ -30,6 +32,7 @@ class TableBroadcaster():
 
         self.tf_broadcaster =  tf.TransformBroadcaster()
       
+        self.image_detection = Echo(self.tf_listener)
         #service proxies
         self.grasper_detect_srv = rospy.ServiceProxy(self.grasper_detect_name, TabletopDetection)     
 
@@ -64,11 +67,16 @@ class TableBroadcaster():
         while not rospy.is_shutdown():
 
             corners = self.find_table()
+
             if corners != None:
 
                 x= corners[0,:].min()
                 y= corners[1,:].max()
                 z= corners[2,:].max()
+                if self.image_detection.table_pos !=None:
+                    xb,yb,_ = self.image_detection.table_pos
+                x= x*0.5 + xb*0.5
+                y= y*0.5 + yb*0.5
                 self.pos = (x,y,z)
                 rospy.sleep(0.5)
                 """
