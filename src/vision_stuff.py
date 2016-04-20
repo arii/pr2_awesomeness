@@ -163,14 +163,14 @@ class Echo:
         self.thread_lock = threading.Lock()
         self.frames = ["tetris", "l_gripper_tool_frame", "table"]
 
-        self.sub_image = rospy.Subscriber("/head_mount_kinect/rgb/image_color",\
-        Image, self.cbImage)
         self.sub_cam_info = rospy.Subscriber("/head_mount_kinect/rgb/camera_info",\
         CameraInfo, self.cbCameraInfo)
 
         self.pub_image = rospy.Publisher("~echo_image", Image)
         self.pub_poses = rospy.Publisher("~object_poses", PoseArray)
         self.bridge = CvBridge()
+        self.sub_image = rospy.Subscriber("/head_mount_kinect/rgb/image_color",\
+        Image, self.cbImage)
 
         rospy.loginfo("[%s] Initialized." %(self.node_name))
 

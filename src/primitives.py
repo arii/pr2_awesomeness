@@ -4,31 +4,36 @@ import rospy
 import numpy as np
 from awesome_arm_controller import ArmController
 from argparse import ArgumentParser
+from geometry_msgs.msg import PoseArray
+from object_manipulator.convert_functions import get_transform
 
 class Primitives:
     block_size = 1e-3 * 13.0 # mm
     W,H = 10.0, 20.0 # tetris grid units
-    z_above = 0.07
+    z_above = 0.1
     z_down = 0.03
     sqr2 = np.sqrt(2.0)/2.0
     sqr7 = np.sqrt(7.0)/4.0
 
     vert = [-.5, .5, .5, .5]
     horz = [0, sqr2, 0, sqr2]
-    rot_r = [-sqr7, -.25, sqr7, -.25]
+    #rot_r = [-sqr7, -.25, sqr7, -.25]
+    rot_r = [-.25, sqr7, 0.25, sqr7]
     rot_l = [sqr7, -.25, -sqr7, -.25]
 
     init_pose = {
         #'r': [-0.73, -0.17, -1.60, -1.46, -32.69, -1.31, -16.94],
         #'l': [ 0.71, -0.04, 1.56, -1.46, -4.72, -1.36, 3.86]}
-        'l': [ 0.7, 0.0, np.pi/2., -np.pi/2., -np.pi*1.5, -np.pi/2.0, np.pi],
+        'l': [ 0.95, 0.0, np.pi/2., -np.pi/2., -np.pi*1.5, -np.pi/2.0, np.pi],
         'r': [ -0.7, 0.0, -np.pi/2., -np.pi/2., -np.pi*1.5, -np.pi/2.0, np.pi]}
-    min_time = 2 
-    max_time = 7.0
+    min_time = 1.0
+    max_time = 5.0
     frame = 'tetris'
 
     def __init__(self, whicharm='l'):
         self.arm = ArmController()
+        self.objects = None
+        self.obj_sub = rospy.Subscriber("/table_publisher/object_poses", PoseArray, self.objCb)
         self.arm.command_torso(0.26)
         self.whicharm = whicharm
         self.move_arm_to_side()
@@ -90,7 +95,7 @@ class Primitives:
         self.arm.cart_movearm(self.whicharm, [cmd + [timeout]], self.frame, False)
         rospy.sleep(1.0)
         while rospy.Time.now() < ros_timeout:
-            rospy.sleep(0.2)
+            rospy.sleep(0.1)
             if not self.arm.is_moving(self.whicharm):
                 self.arm.cancel_goal(self.whicharm)
                 break
@@ -123,7 +128,7 @@ class Primitives:
         pose = list(pos) + self.rot_r
         #use force control
         fx = -7
-        fy =  -1 
+        fy =  -3 
         fz = -2
         #keep gripper rotated
         ox,oy,oz = [30]*3
@@ -173,7 +178,7 @@ class Primitives:
         #use force control
         fx = 300
         fy =  -5 
-        fz = -2
+        fz = -3
         #keep gripper rotated
         ox,oy,oz = [30]*3
         states =[False, True, True] +  [False]*3
@@ -185,7 +190,7 @@ class Primitives:
         #use force control
         fx = 300
         fy =  5 
-        fz = -2
+        fz = -3
         #keep gripper rotated
         ox,oy,oz = [30]*3
         states =[False, True, True] +  [False]*3
@@ -197,6 +202,48 @@ class Primitives:
     def convert_xy(self, (x,y) ):
         return (x*self.block_size, y*self.block_size, self.z_down)
 
+    def objCb(self, msg):
+        try:
+            T =  get_transform(self.arm.tf_listener, "base_link", "tetris")#.getI()
+        except:
+            return
+        tetris_pts = []
+        
+        for pt in msg.poses:
+            p = pt.position.x, pt.position.y, pt.position.z
+            tetris_pt = self.transform_pts(T, p)
+            tetris_pt[2] = self.z_down # remap z to 0
+            #tetris_pts.append(tetris_pt)
+
+            grid_pts =[ x/self.block_size  for x in tetris_pt[:2] ]
+             
+            tetris_pts.append(self.clip_grid(grid_pts))
+            #print grid_pts
+        self.objects = tetris_pts
+
+    def clip_grid(self, (x,y)):
+        if x > self.W:
+            x = self.W
+        elif x < 0:
+            x = 0
+        if y > self.H:
+            y = self.H
+        elif y < 0:
+            y = 0
+        return [x,y]
+
+
+    def transform_pts(self, T, p):
+        v = np.matrix(list(p) + [1.0])
+        pt =  T*v.T 
+        return [float(p) for p in list(pt)[:3]]
+
+
+
+
+    
+    
+    
       
 
 if __name__=="__main__":
@@ -210,21 +257,39 @@ if __name__=="__main__":
         
     rospy.init_node("tetris")
 
+
+
  
     tetris = Primitives()
+    
 
-    above_center = tetris.convert_xy( (tetris.W/2, tetris.H*1.2))
-    left_corner  = tetris.convert_xy( (tetris.W*.1, tetris.H*.1))
-    middle_center = tetris.convert_xy( (tetris.W/2, tetris.H/2) )
-    """
+    #above_center = tetris.convert_xy( (tetris.W/2, tetris.H*1.2))
+    #left_corner  = tetris.convert_xy( (0,0))
+    #middle_center = tetris.convert_xy( (tetris.W/2, tetris.H/2) )
+    
+
+    #given direction of push and object location.. figure out when paddle should be?
+    # instead it will just be object left, object right etc.
+    
+    left_corner  = tetris.convert_xy( (0,0) )
+    
     for i in range(5):
+        objat = tetris.objects[0]
+        objat[1] += 2.5 
+        above_center = tetris.convert_xy(objat)
+
+
+
         # push block to corner
         tetris.push_down(above_center)
         tetris.push_right(left_corner)
 
         tetris.move_arm_to_side()
         raw_input("next test")
+   
     """
+
+    
     tetris.push_down(above_center)
     tetris.push_right(left_corner)
 
@@ -234,7 +299,7 @@ if __name__=="__main__":
     tetris.free_space_push_down(above_center, middle_center)
     tetris.push_right(middle_center)
     tetris.right_contact_slide_down(middle_center)
-
+    """
     
 
 
