@@ -32,7 +32,7 @@ class TableBroadcaster():
 
         self.tf_broadcaster =  tf.TransformBroadcaster()
       
-        self.image_detection = Echo(self.tf_listener)
+        self.image_detection = Echo(self.tf_listener, table=True)
         #service proxies
         self.grasper_detect_srv = rospy.ServiceProxy(self.grasper_detect_name, TabletopDetection)     
 
@@ -75,8 +75,8 @@ class TableBroadcaster():
                 z= corners[2,:].max()
                 if self.image_detection.table_pos !=None:
                     xb,yb,_ = self.image_detection.table_pos
-                x= x*0.5 + xb*0.5
-                y= y*0.5 + yb*0.5
+                    x= x*0.5 + xb*0.5
+                    y= y*0.5 + yb*0.5
                 self.pos = (x,y,z)
                 rospy.sleep(0.5)
                 """

@@ -7,7 +7,7 @@ import threading
 import numpy as np
 import tf
 import image_geometry
-from geometry_msgs.msg import Point, PointStamped
+from geometry_msgs.msg import Point, PointStamped, Pose, PoseArray, Point, Quaternion
 from object_manipulator.convert_functions import get_transform
 
 class Detector:
@@ -15,8 +15,8 @@ class Detector:
     RED2 = [np.array(x, np.uint8) for x in [[165,140,100], [180, 255, 255]] ]
     YELLOW = [np.array(x, np.uint8) for x in [[25,100,150], [35, 255, 255]] ] 
     ORANGE = [np.array(x, np.uint8) for x in [[0,80,80], [22, 255,255]] ]
-    GREEN = [np.array(x, np.uint8) for x in [[25,80,100], [50, 255,255]] ]
-    BLUE = [np.array(x, np.uint8) for x in [[50,80,100], [120, 255,255]] ]
+    GREEN = [np.array(x, np.uint8) for x in [[25,80,100], [60, 255,255]] ]
+    BLUE = [np.array(x, np.uint8) for x in [[110, 50,50], [120,255,255 ]] ]
     colors={'RED1':RED1, 'RED2':RED2, 'YELLOW':YELLOW, 'ORANGE':ORANGE, 'GREEN':GREEN, 'BLUE': BLUE}
 
     def get_filtered_contours(self,img, contour_type):
@@ -112,7 +112,7 @@ class Detector:
             result = cv2.minAreaRect(cnt)
             center, (width,height), rotation = result
             avg_rotation += rotation*.5
-            if y > 100: # assume bottom
+            if y > 250: # assume bottom
                 for px, py in cv2.cv.BoxPoints(result):
                     if px < center[0] and py > center[1]:
                         table_corner = int(px), int(py)
@@ -135,6 +135,9 @@ class Detector:
         results = []
         for area, (cnt, box,  aspect_ratio, mean_color, area) in  all_contours:
             # plot box around contour
+            #R,G, B, a = mean_color
+            #if B < 1.2*G: continue
+
             x,y,w,h = box
             font = cv2.FONT_HERSHEY_SIMPLEX
             cv2.putText(img,"ari", (x,y), font, 0.5,mean_color,4)
@@ -146,7 +149,7 @@ class Detector:
         return img, results
 
 class Echo:
-    def __init__(self, tf_listener=None):
+    def __init__(self, tf_listener=None, table=False):
         self.node_name = "Echo"
         self.camera_info = None
         self.camera = image_geometry.PinholeCameraModel()
@@ -156,7 +159,7 @@ class Echo:
             self.tf_listener = tf_listener
         self.detector = Detector()
         self.table_pos = None
-
+        self.table= table
         self.thread_lock = threading.Lock()
         self.frames = ["tetris", "l_gripper_tool_frame", "table"]
 
@@ -166,6 +169,7 @@ class Echo:
         CameraInfo, self.cbCameraInfo)
 
         self.pub_image = rospy.Publisher("~echo_image", Image)
+        self.pub_poses = rospy.Publisher("~object_poses", PoseArray)
         self.bridge = CvBridge()
 
         rospy.loginfo("[%s] Initialized." %(self.node_name))
@@ -186,10 +190,11 @@ class Echo:
         if not self.thread_lock.acquire(False):
             return
         image_cv = np.array(self.bridge.imgmsg_to_cv(image_msg)[:,:] )
-        
-        image_cv = self.broadcast_table(image_cv)
+        if self.table:
+            image_cv = self.broadcast_table(image_cv)
+        #else:
         image_cv = self.broadcast_objects(image_cv)
-        image_cv = self.label_frames(image_cv)
+        #image_cv = self.label_frames(image_cv)
 
         image = cv2.cv.fromarray(image_cv)
         try:
@@ -213,11 +218,6 @@ class Echo:
             except:
                 print "could not get transform"
                 #rospy.sleep(0.5)
-            image_cv, table_corner, rotation  = self.detector.tetris_bounds(image_cv)
-        if rotation  < -2: rospy.loginfo("table is rotated %s !!"% rotation)
-        if table_corner != None:
-            self.table_pos =  self.pixel_to_base_link(image_cv, table_corner)
-
 
             if transform != None:
                 x,y =( int(p) for p in  self.camera.project3dToPixel(transform[0]))
@@ -243,14 +243,27 @@ class Echo:
         if rotation  < -2: rospy.loginfo("table is rotated %s !!"% rotation)
         if table_corner != None:
             self.table_pos =  self.pixel_to_base_link(image_cv, table_corner)
+            x,y = table_corner
+            cv2.circle(image_cv, (x,y) , 5, (255,0,0), 1)
+        else:
+            self.table_pos = None
         return image_cv
 
     def broadcast_objects(self, image_cv):
         image_cv, results  = self.detector.find_objects(image_cv)
+        poses = []
         for result in results:
             center, (width,height), rotation  = result
-            object_pos = self.pixel_to_base_link(image_cv, center)
-            raw_input(object_pos)
+            pos = Point(*self.pixel_to_base_link(image_cv, center))
+            #q = Quaternion(x=rotation) # placeholder
+            poses.append( Pose(pos, Quaternion(z=1.0)) ) # placeholder)
+        stamped_poses = PoseArray()
+        stamped_poses.header.frame_id = "base_link"
+        stamped_poses.header.stamp  = rospy.Time(0)
+        stamped_poses.poses = poses
+        
+        self.pub_poses.publish(stamped_poses)
+
 
         return image_cv
 
@@ -258,6 +271,6 @@ class Echo:
 
 if __name__=="__main__":
     rospy.init_node('Echo')
-    e = Echo()
+    e = Echo(None, False)
     rospy.spin()
 
