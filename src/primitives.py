@@ -25,7 +25,7 @@ class Primitives:
         #'r': [-0.73, -0.17, -1.60, -1.46, -32.69, -1.31, -16.94],
         #'l': [ 0.71, -0.04, 1.56, -1.46, -4.72, -1.36, 3.86]}
         'l': [ 0.95, 0.0, np.pi/2., -np.pi/2., -np.pi*1.5, -np.pi/2.0, np.pi],
-        'r': [ -0.7, 0.0, -np.pi/2., -np.pi/2., -np.pi*1.5, -np.pi/2.0, np.pi]}
+        'r': [ -0.7, 0.0, -np.pi/2., -np.pi/2., -20.424894658897493, -np.pi/2.0, np.pi]}
     min_time = 1.0
     max_time = 5.0
     frame = 'tetris'
@@ -42,14 +42,15 @@ class Primitives:
         self.arm.joint_movearm(self.whicharm, self.init_pose[self.whicharm],
                 3, True)
    
-    def lift_arm(self):
+    def lift_arm(self, rating=1.0):
         rospy.sleep(0.1)
         curr_pos  = self.arm.get_cartesian_pose(self.frame)[self.whicharm]
-        curr_pos[2] = self.z_above
-        goal =[ self.stiff_pose(curr_pos, 0.1) + [0.25*self.min_time], 
-                 self.stiff_pose(curr_pos, 0.5) + [0.5*self.min_time],
-                 self.stiff_pose(curr_pos, 1.0) + [self.min_time] ]
+        curr_pos[2] = self.z_above *rating
+        goal =[ self.stiff_pose(curr_pos, 0.1) + [0.25*self.min_time*rating], 
+                 self.stiff_pose(curr_pos, 0.5) + [0.5*self.min_time*rating],
+                 self.stiff_pose(curr_pos, 1.0) + [self.min_time*rating] ]
         self.arm.cart_movearm(self.whicharm, goal , self.frame, True)
+        #raw_input("done lift")
    
     def stiff_pose(self, pose, rating = 0.2):
         pose_force = int(100*rating)
@@ -72,7 +73,7 @@ class Primitives:
 
     def approach_pose(self, pose):
         curr_pose = self.arm.get_cartesian_pose(self.frame)[self.whicharm]
-        time = self.clip_time(10*self.distance_between_two_pts(curr_pose, pose))
+        time = self.clip_time(15*self.distance_between_two_pts(curr_pose, pose))
         curr_pose[2] = self.z_above
         middle_pose = list(pose)
         middle_pose[2] = self.z_above
@@ -85,6 +86,9 @@ class Primitives:
                 ]
 
         self.arm.cart_movearm(self.whicharm, traj, self.frame, True)
+        rospy.sleep(0.1)
+        #final_pose = self.arm.get_cartesian_pose(self.frame)[self.whicharm]
+        #dist = self.distance_between_two_pts(pose, final_pose)
 
         
     def do_force_control(self, cmd, timeout=4.0):
@@ -95,8 +99,8 @@ class Primitives:
 
         ros_timeout = rospy.Time.now() + rospy.Duration(timeout)
         self.arm.cart_movearm(self.whicharm, [cmd + [timeout]], self.frame, False)
-        rospy.sleep(1.0)
-        while rospy.Time.now() < ros_timeout:
+        rospy.sleep(0.2)
+        while rospy.Time.now() < ros_timeout and not rospy.is_shutdown():
             rospy.sleep(0.1)
             if not self.arm.is_moving(self.whicharm):
                 self.arm.cancel_goal(self.whicharm)
@@ -120,7 +124,7 @@ class Primitives:
     def free_space_push_down(self, pos1, pos2):
         pose1 =  list(pos1) + self.horz
         pose2 =  list(pos2) + self.horz
-        time = self.clip_time(self.distance_between_two_pts(pose1,pose2))
+        time = self.clip_time(15*self.distance_between_two_pts(pose1,pose2))
         self.approach_pose(pose1)
 
         traj = [
@@ -129,6 +133,7 @@ class Primitives:
                 ]
 
         self.arm.cart_movearm(self.whicharm, traj, self.frame, True)
+        self.lift_arm(1.)
 
 
     def free_push(self, pose, rating=1.0):  # position controlled
@@ -282,34 +287,89 @@ if __name__=="__main__":
         
     rospy.init_node("tetris")
 
-
+    
 
  
     tetris = Primitives()
     
 
-    #above_center = tetris.convert_xy( (tetris.W/2, tetris.H*1.2))
-    #left_corner  = tetris.convert_xy( (0,0))
-    #middle_center = tetris.convert_xy( (tetris.W/2, tetris.H/2) )
+    above_center = tetris.convert_xy( (tetris.W/2, tetris.H*1.2))
+    left_corner  = tetris.convert_xy( (0,0))
+    middle_center = tetris.convert_xy( (tetris.W/2, tetris.H/2) )
     
-
     #given direction of push and object location.. figure out when paddle should be?
     # instead it will just be object left, object right etc.
     
     left_corner  = tetris.convert_xy( (0,0) )
-    while tetris.objects == None:
-        rospy.sleep(0.1)
-        rospy.loginfo("waiting to detect object")
-    for i in range(5):
+
+    def find_object():
+        tetris.objects = None
+        while tetris.objects == None and not rospy.is_shutdown():
+            rospy.sleep(0.1)
+            rospy.loginfo("waiting to detect object")
+    
+    def get_above_pose():
         objat = list(tetris.objects[0])
-        objat[1] += 3
+        objat[1] += 4.5
+        above_center = tetris.convert_xy(objat)
+        return above_center
+    
+    def get_left_pose():
+        objat = list(tetris.objects[0])
+        objat[0] = 0
+        left = tetris.convert_xy(objat)
+        return left
+
+
+   
+    def push_block_center():
+        above_pose = get_above_pose()
+        tetris.free_space_push_down(above_pose, middle_center)
+
+    def push_center_block_side():
+        left = get_left_pose()
+        tetris.push_right(left)
+
+    def slide_block_on_right():
+        above_pose = get_above_pose()
+        tetris.right_contact_slide_down(above_pose)
+
+    
+    
+    def push_block_to_corner():
+        find_object()
+        above_pose = get_above_pose()
+        tetris.push_down(above_pose, 1.2)
+        tetris.push_right(left_corner)
+
+    def block_ontop_corner():
+        find_object()
+        push_block_center()
+        find_object()
+        push_center_block_side()
+        find_object()
+        slide_block_on_right()
+
+
+    for i in range(5):
+        push_block_to_corner()
+        block_ontop_corner()
+        
+
+        # push_block_to_corner()
+        tetris.move_arm_to_side()
+        rospy.sleep(1)
+        raw_input("repeat")
+
+    """ 
+        objat = list(tetris.objects[0])
+        objat[1] += 4.5
         above_center = tetris.convert_xy(objat)
 
 
 
         # push block to corner
         tetris.push_down(above_center, 1.2)
-        rospy.sleep(0.5)
 
         if tetris.objects[0][1] > 10: 
             tetris.move_arm_to_side()
@@ -321,20 +381,17 @@ if __name__=="__main__":
 
         tetris.move_arm_to_side()
    
-    """
 
-    
-    tetris.push_down(above_center)
+    tetris.push_down(above_center, 1.2)
     tetris.push_right(left_corner)
 
     tetris.move_arm_to_side()
-
+    raw_input("start")
     # push block on top of corner block
     tetris.free_space_push_down(above_center, middle_center)
     tetris.push_right(middle_center)
     tetris.right_contact_slide_down(middle_center)
-    """
     
 
-
+    """
 
