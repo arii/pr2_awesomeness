@@ -10,7 +10,7 @@ from object_manipulator.convert_functions import get_transform
 class Primitives:
     block_size = 1e-3 * 13.0 # mm
     W,H = 10.0, 20.0 # tetris grid units
-    z_above = 0.1
+    z_above = 0.07
     z_down = 0.03
     sqr2 = np.sqrt(2.0)/2.0
     sqr7 = np.sqrt(7.0)/4.0
@@ -79,18 +79,20 @@ class Primitives:
 
         traj = [
                 self.stiff_pose(curr_pose, 0.1) + [time*.1],
-                self.stiff_pose(curr_pose, 0.5) + [time*.2],
-                self.stiff_pose(middle_pose, 1.0) + [time*.8],
-                self.free_push(pose) + [time]
+                self.stiff_pose(curr_pose, 1.0) + [time*.2],
+                self.stiff_pose(middle_pose, 1.5) + [time*.8],
+                self.free_push(pose, 1.5) + [time]
                 ]
 
         self.arm.cart_movearm(self.whicharm, traj, self.frame, True)
 
-
         
     def do_force_control(self, cmd, timeout=4.0):
         self.approach_pose(cmd[:7])
-        rospy.sleep(0.2)
+        rospy.sleep(0.1)
+
+        curr_pose = self.arm.get_cartesian_pose(self.frame)[self.whicharm]
+
         ros_timeout = rospy.Time.now() + rospy.Duration(timeout)
         self.arm.cart_movearm(self.whicharm, [cmd + [timeout]], self.frame, False)
         rospy.sleep(1.0)
@@ -99,6 +101,19 @@ class Primitives:
             if not self.arm.is_moving(self.whicharm):
                 self.arm.cancel_goal(self.whicharm)
                 break
+        
+        """ 
+        final_pose = self.arm.get_cartesian_pose(self.frame)[self.whicharm]
+        if self.distance_between_two_pts(curr_pose, final_pose) < self.block_size:
+            ros_timeout = rospy.Time.now() + rospy.Duration(timeout)
+            self.arm.cart_movearm(self.whicharm, [cmd + [timeout]], self.frame, False)
+            rospy.sleep(1.0)
+            while rospy.Time.now() < ros_timeout:
+                rospy.sleep(0.1)
+                if not self.arm.is_moving(self.whicharm):
+                    self.arm.cancel_goal(self.whicharm)
+                    break
+        """
 
         self.lift_arm()
 
@@ -116,56 +131,56 @@ class Primitives:
         self.arm.cart_movearm(self.whicharm, traj, self.frame, True)
 
 
-    def free_push(self, pose):  # position controlled
-        fx,fy,fz = [300]*3  # max stiffness
-        ox,oy,oz = [10]*3
-        fz = -5  # force in downard direction
+    def free_push(self, pose, rating=1.0):  # position controlled
+        fx,fy,fz = [300*rating]*3  # max stiffness
+        ox,oy,oz = [10*rating]*3
+        fz = -5*rating  # force in downard direction
         states = [False]*6
         states[2] = True # use force control for Z
         return list(pose) + [fx,fy,fz,ox,oy,oz] + states 
 
-    def right_contact_slide_down(self, pos):
+    def right_contact_slide_down(self, pos, rating=1.0):
         pose = list(pos) + self.rot_r
         #use force control
-        fx = -7
-        fy =  -3 
-        fz = -2
+        fx = -7*rating
+        fy =  -3 * rating
+        fz = -2* rating
         #keep gripper rotated
         ox,oy,oz = [30]*3
         states =[True, True, True] +  [False]*3
         cmd = list(pose) + [fx,fy,fz,ox,oy,oz] + states 
         self.do_force_control(cmd)
     
-    def left_contact_slide_down(self, pos):
+    def left_contact_slide_down(self, pos, rating=1.0):
         pose = list(pos) + self.rot_l
         #use force control
-        fx = -7
-        fy =  2
-        fz = -2
+        fx = -7*rating
+        fy =  2*rating
+        fz = -2*rating
         #keep gripper rotated
         ox,oy,oz = [30]*3
         states =[True, True, True] +  [False]*3
         cmd = list(pose) + [fx,fy,fz,ox,oy,oz] + states 
         self.do_force_control(cmd)
     
-    def right_contact_slide_right(self, pos):
+    def right_contact_slide_right(self, pos, rating=1.0):
         pose = list(pos) + self.rot_r
         #use force control
-        fx = -2
-        fy =  -5
-        fz = -2
+        fx = -2*rating
+        fy =  -5*rating
+        fz = -2*rating
         #keep gripper rotated
         ox,oy,oz = [30]*3
         states =[True, True, True] +  [False]*3
         cmd = list(pose) + [fx,fy,fz,ox,oy,oz] + states 
         self.do_force_control(cmd)
 
-    def push_down(self, pos):
+    def push_down(self, pos, rating=1.0):
         pose =  list(pos) + self.horz
         #use force control
-        fx = -7
-        fy = 300
-        fz = -3
+        fx = -7*rating
+        fy = 300*rating
+        fz = -3*rating
         #keep gripper rotated
         ox,oy,oz = [30]*3
         states =[True, False, True] +  [False]*3
@@ -173,24 +188,24 @@ class Primitives:
         self.do_force_control(cmd)
 
     
-    def push_right(self, pos):
+    def push_right(self, pos, rating=1.0):
         pose =  list(pos) + self.vert
         #use force control
-        fx = 300
-        fy =  -5 
-        fz = -3
+        fx = 300*rating
+        fy =  -5 *rating
+        fz = -3*rating
         #keep gripper rotated
         ox,oy,oz = [30]*3
         states =[False, True, True] +  [False]*3
         cmd = list(pose) + [fx,fy,fz,ox,oy,oz] + states 
         self.do_force_control(cmd)
 
-    def push_left(self, pos):
+    def push_left(self, pos, rating=1.0):
         pose =  list(pos) + self.vert
         #use force control
-        fx = 300
-        fy =  5 
-        fz = -3
+        fx = 300*rating
+        fy =  5 *rating
+        fz = -3*rating
         #keep gripper rotated
         ox,oy,oz = [30]*3
         states =[False, True, True] +  [False]*3
@@ -216,18 +231,28 @@ class Primitives:
             #tetris_pts.append(tetris_pt)
 
             grid_pts =[ x/self.block_size  for x in tetris_pt[:2] ]
-             
-            tetris_pts.append(self.clip_grid(grid_pts))
+            if self.in_grid(grid_pts):
+                tetris_pts.append(self.clip_grid(grid_pts))
             #print grid_pts
-        self.objects = tetris_pts
+        tetris_pts = sorted(tetris_pts, reverse=True, key=lambda x: x[1]) # sort by largest y first
+        if len(tetris_pts) > 0:
+            self.objects = tetris_pts
+    def in_grid(self, (x,y)):
+        if x < -2 : return False
+        if y < -2: return False
+
+        if x > self.W*1.2: return False
+        if y > self.H*1.5: return False
+
+        return True
 
     def clip_grid(self, (x,y)):
         if x > self.W:
             x = self.W
         elif x < 0:
             x = 0
-        if y > self.H:
-            y = self.H
+        if y > self.H*1.5:
+            y = self.H*1.5
         elif y < 0:
             y = 0
         return [x,y]
@@ -272,20 +297,29 @@ if __name__=="__main__":
     # instead it will just be object left, object right etc.
     
     left_corner  = tetris.convert_xy( (0,0) )
-    
+    while tetris.objects == None:
+        rospy.sleep(0.1)
+        rospy.loginfo("waiting to detect object")
     for i in range(5):
-        objat = tetris.objects[0]
-        objat[1] += 2.5 
+        objat = list(tetris.objects[0])
+        objat[1] += 3
         above_center = tetris.convert_xy(objat)
 
 
 
         # push block to corner
-        tetris.push_down(above_center)
+        tetris.push_down(above_center, 1.2)
+        rospy.sleep(0.5)
+
+        if tetris.objects[0][1] > 10: 
+            tetris.move_arm_to_side()
+            print "object not low enough!"
+            continue
+
         tetris.push_right(left_corner)
+        
 
         tetris.move_arm_to_side()
-        raw_input("next test")
    
     """
 

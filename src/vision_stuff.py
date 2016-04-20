@@ -16,7 +16,8 @@ class Detector:
     YELLOW = [np.array(x, np.uint8) for x in [[25,100,150], [35, 255, 255]] ] 
     ORANGE = [np.array(x, np.uint8) for x in [[0,80,80], [22, 255,255]] ]
     GREEN = [np.array(x, np.uint8) for x in [[25,80,100], [60, 255,255]] ]
-    BLUE = [np.array(x, np.uint8) for x in [[110, 50,50], [120,255,255 ]] ]
+    BLUE = [np.array(x, np.uint8) for x in [[100, 150,140], [120,255,255 ]] ]
+    BLUE = [np.array(x, np.uint8) for x in [[95, 100,100], [120,255,255 ]] ]
     colors={'RED1':RED1, 'RED2':RED2, 'YELLOW':YELLOW, 'ORANGE':ORANGE, 'GREEN':GREEN, 'BLUE': BLUE}
 
     def get_filtered_contours(self,img, contour_type):
@@ -135,12 +136,12 @@ class Detector:
         results = []
         for area, (cnt, box,  aspect_ratio, mean_color, area) in  all_contours:
             # plot box around contour
-            #R,G, B, a = mean_color
+            R,G, B, a = mean_color
             #if B < 1.2*G: continue
 
             x,y,w,h = box
-            font = cv2.FONT_HERSHEY_SIMPLEX
-            cv2.putText(img,"ari", (x,y), font, 0.5,mean_color,4)
+            font = cv2.FONT_HERSHEY_PLAIN
+            cv2.putText(img,"%d,%d,%d"%(R,G,B), (x,y), font, 1.,mean_color,1)
             cv2.rectangle(img,(x,y),(x+w,y+h), mean_color,2)
             center, (width,height), rotation = cv2.minAreaRect(cnt)
             results.append(cv2.minAreaRect(cnt))
