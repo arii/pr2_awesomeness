@@ -196,7 +196,7 @@ class Primitives:
     def push_right(self, pos, rating=1.0):
         pose =  list(pos) + self.vert
         #use force control
-        fx = 300*rating
+        fx = 400*rating
         fy =  -5 *rating
         fz = -3*rating
         #keep gripper rotated
@@ -253,7 +253,7 @@ class Primitives:
 
     def clip_grid(self, (x,y)):
         if x > self.W:
-            x = self.W
+            x = self.W*0.85
         elif x < 0:
             x = 0
         if y > self.H*1.5:
@@ -295,7 +295,7 @@ if __name__=="__main__":
 
     above_center = tetris.convert_xy( (tetris.W/2, tetris.H*1.2))
     left_corner  = tetris.convert_xy( (0,0))
-    middle_center = tetris.convert_xy( (tetris.W/2, tetris.H/2) )
+    middle_center = tetris.convert_xy( (tetris.W/2, 0.7*tetris.H) )
     
     #given direction of push and object location.. figure out when paddle should be?
     # instead it will just be object left, object right etc.
@@ -304,11 +304,13 @@ if __name__=="__main__":
 
     def find_object():
         tetris.objects = None
+        rospy.sleep(.2)
         while tetris.objects == None and not rospy.is_shutdown():
-            rospy.sleep(0.1)
             rospy.loginfo("waiting to detect object")
+            rospy.sleep(0.2)
     
     def get_above_pose():
+        find_object()
         objat = list(tetris.objects[0])
         objat[1] += 4.5
         above_center = tetris.convert_xy(objat)
@@ -316,17 +318,24 @@ if __name__=="__main__":
     
     def get_left_pose():
         objat = list(tetris.objects[0])
-        objat[0] = 0
+        objat[0] = 2
         left = tetris.convert_xy(objat)
         return left
 
 
    
-    def push_block_center():
-        above_pose = get_above_pose()
-        tetris.free_space_push_down(above_pose, middle_center)
+    def push_block_down(middle=False):
 
-    def push_center_block_side():
+        above_pose = get_above_pose()
+
+        if middle:
+            middle_center = list(above_pose)
+            middle_center[1] = 0.7*tetris.H*tetris.block_size
+            tetris.free_space_push_down(above_pose,middle_center)
+        else:
+            tetris.push_down(above_pose, 1.2)
+
+    def push_block_right():
         left = get_left_pose()
         tetris.push_right(left)
 
@@ -337,29 +346,25 @@ if __name__=="__main__":
     
     
     def push_block_to_corner():
-        find_object()
-        above_pose = get_above_pose()
-        tetris.push_down(above_pose, 1.2)
-        tetris.push_right(left_corner)
+        push_block_down(middle=False)
+        push_block_right()
 
     def block_ontop_corner():
-        find_object()
-        push_block_center()
-        find_object()
-        push_center_block_side()
-        find_object()
+        push_block_down(middle=True)
+        push_block_right()
         slide_block_on_right()
 
 
-    for i in range(5):
+    for i in range(10):
         push_block_to_corner()
-        block_ontop_corner()
-        
-
-        # push_block_to_corner()
         tetris.move_arm_to_side()
-        rospy.sleep(1)
-        raw_input("repeat")
+
+        block_ontop_corner()
+        tetris.move_arm_to_side()
+
+        
+        raw_input("repeat test")
+
 
     """ 
         objat = list(tetris.objects[0])
