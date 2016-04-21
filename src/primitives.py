@@ -135,6 +135,20 @@ class Primitives:
         self.arm.cart_movearm(self.whicharm, traj, self.frame, True)
         self.lift_arm(1.)
 
+    def free_space_push_right(self, pos1, pos2):
+        pose1 =  list(pos1) + self.vert
+        pose2 =  list(pos2) + self.vert
+        time = self.clip_time(15*self.distance_between_two_pts(pose1,pose2))
+        self.approach_pose(pose1)
+
+        traj = [
+                self.free_push(pose1) + [time*.1],
+                self.free_push(pose2) + [time]
+                ]
+
+        self.arm.cart_movearm(self.whicharm, traj, self.frame, True)
+        self.lift_arm(1.)
+
 
     def free_push(self, pose, rating=1.0):  # position controlled
         fx,fy,fz = [300*rating]*3  # max stiffness
@@ -324,20 +338,26 @@ if __name__=="__main__":
 
 
    
-    def push_block_down(middle=False):
+    def push_block_down(middle=False, rating=1.2):
 
         above_pose = get_above_pose()
 
         if middle:
             middle_center = list(above_pose)
-            middle_center[1] = 0.7*tetris.H*tetris.block_size
+            middle_center[1] = 0.6*tetris.H*tetris.block_size
             tetris.free_space_push_down(above_pose,middle_center)
         else:
-            tetris.push_down(above_pose, 1.2)
+            tetris.push_down(above_pose, rating)
 
-    def push_block_right():
+    def push_block_right(grid_pose=-1, rating=1.30):
         left = get_left_pose()
-        tetris.push_right(left)
+        if grid_pose == -1:
+            tetris.push_right(left, rating)
+        else:
+            end = list(left)
+            end[0] = grid_pose*tetris.block_size
+            tetris.free_space_push_right(left, end)
+
 
     def slide_block_on_right():
         above_pose = get_above_pose()
@@ -348,22 +368,51 @@ if __name__=="__main__":
     def push_block_to_corner():
         push_block_down(middle=False)
         push_block_right()
+        tetris.move_arm_to_side()
 
     def block_ontop_corner():
         push_block_down(middle=True)
-        push_block_right()
+        push_block_right(rating=1.0,grid_pose=2)
+        push_block_right(rating=1.2)
         slide_block_on_right()
+        tetris.move_arm_to_side()
+
+    def place_block_special():
+        push_block_down(middle=True)
+        push_block_right(rating=1.0,grid_pose=2)
+        push_block_right(grid_pose=6)
+        push_block_down(middle=False, rating=0.7)
+        push_block_right(rating=1, grid_pose=7)
+        tetris.move_arm_to_side()
+
+
 
 
     for i in range(10):
-        push_block_to_corner()
-        tetris.move_arm_to_side()
+        raw_input("%s-- repeat test"% i)
 
-        block_ontop_corner()
-        tetris.move_arm_to_side()
+        #|         []|
+        #|         []|
+        #|_________[]|
+        #push_block_to_corner()
+        #block_ontop_corner()
+        #block_ontop_corner()
+
+
+        #|           |
+        #|           |
+        #|_____[][][]|
+        #push_block_to_corner()
+        #push_block_to_corner()
+        #push_block_to_corner()
+
+        #|       []  |
+        #|_______[][]|
+        #push_block_to_corner()
+        #push_block_to_corner()
+        place_block_special() 
 
         
-        raw_input("repeat test")
 
 
     """ 
