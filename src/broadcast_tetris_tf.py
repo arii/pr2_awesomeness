@@ -1,5 +1,4 @@
-#!/usr/bin/python
-
+#!/usr/bin/env python
 import roslib
 roslib.load_manifest('pr2_awesomeness')
 import rospy
@@ -9,9 +8,9 @@ import tf
 import scipy
 import threading
 from object_manipulator.convert_functions import change_pose_stamped_frame, pose_to_mat
-
+import sys
 from vision_stuff import Echo
-
+from std_msgs.msg import Bool 
 ##Manager for pick and place actions
 class TableBroadcaster():
 
@@ -20,6 +19,9 @@ class TableBroadcaster():
         self.lock = threading.Lock()
 
         self.stereo_camera_frame = rospy.get_param("~stereo_camera_frame", "/head_mount_kinect_rgb_optical_frame")
+        self.freeze_update = False
+
+        self.freeze_sub = rospy.Subscriber('freeze', Bool, self.toggleFreeze)
 
         #service names
         self.grasper_detect_name = 'object_detection'
@@ -31,8 +33,9 @@ class TableBroadcaster():
             self.tf_listener = tf_listener
 
         self.tf_broadcaster =  tf.TransformBroadcaster()
+        self.rate = rospy.Rate(0.25)
       
-        self.image_detection = Echo(self.tf_listener, table=True)
+        self.image_detection = Echo(self.tf_listener,table=False)# table=True)
         #service proxies
         self.grasper_detect_srv = rospy.ServiceProxy(self.grasper_detect_name, TabletopDetection)     
 
@@ -44,7 +47,12 @@ class TableBroadcaster():
         self.thread = threading.Thread(target=self.broadcast_table)
         self.thread.start()
         self.start_broadcast_table()
-        
+
+    def toggleFreeze(self, msg):
+        self.freeze_update = msg.data
+        rospy.loginfo("Freeze update: %s " % msg.data)
+
+
 
     
     def broadcast_table(self):
@@ -52,13 +60,16 @@ class TableBroadcaster():
         while not rospy.is_shutdown():
             # tetris
             if self.pos == None:
-                rospy.sleep(0.5)
+                self.rate.sleep()
             else:
                 pos = tuple(self.pos)
                 (x,y,z) = pos
                 self.tf_broadcaster.sendTransform(pos, quat, rospy.Time.now(), "table", "base_link")
-                x  += .08
-                y -= 0.03
+                x  += .065
+                y -= 0.01
+                #x  += 0.095
+                #y -= 0.013
+                z+= .02
                 pos = (x,y,z)
                 self.tf_broadcaster.sendTransform(pos, quat, rospy.Time.now(), "tetris", "base_link")
 
@@ -66,39 +77,39 @@ class TableBroadcaster():
     def start_broadcast_table(self):
         while not rospy.is_shutdown():
 
-            corners = self.find_table()
+            self.rate.sleep()
+            if not self.freeze_update:
+                corners = self.find_table()
 
-            if corners != None:
+                if corners != None:
 
-                x= corners[0,:].min()
-                y= corners[1,:].max()
-                z= corners[2,:].max()
-                if self.image_detection.table_pos !=None:
-                    xb,yb,_ = self.image_detection.table_pos
-                    x= x*0.5 + xb*0.5
-                    y= y*0.5 + yb*0.5
-                self.pos = (x,y,z)
-                rospy.sleep(0.5)
-                """
-                # tetris
-                pos = (x,y,z)
-                quat = (0,0,-(2**.5),2**.5)
-                self.tf_broadcaster.sendTransform(pos, quat, rospy.Time.now(), "table", "base_link")
-                x  += .08
-                y -= 0.03
-                pos = (x,y,z)
-                quat = (0,0,-(2**.5),2**.5)
-                reset = rospy.Time.now() + rospy.Duration(0.5)
-                while not rospy.is_shutdown() and ( rospy.Time.now() < reset) :
-                    self.tf_broadcaster.sendTransform(pos, quat, rospy.Time.now(), "tetris", "base_link")
-                    #rospy.sleep(0.05)
-                """
+                    x= corners[0,:].min()
+                    y= corners[1,:].max()
+                    z= corners[2,:].max()
+                    #if self.image_detection.table_pos !=None:
+                        #xb,yb,_ = self.image_detection.table_pos
+                        #x= x*0.5 + xb*0.5
+                        #y= y*0.5 + yb*0.5
+                    self.pos = (x,y,z)
+                    """
+                    # tetris
+                    pos = (x,y,z)
+                    quat = (0,0,-(2**.5),2**.5)
+                    self.tf_broadcaster.sendTransform(pos, quat, rospy.Time.now(), "table", "base_link")
+                    x  += .08
+                    y -= 0.03
+                    pos = (x,y,z)
+                    quat = (0,0,-(2**.5),2**.5)
+                    reset = rospy.Time.now() + rospy.Duration(0.5)
+                    while not rospy.is_shutdown() and ( rospy.Time.now() < reset) :
+                        self.tf_broadcaster.sendTransform(pos, quat, rospy.Time.now(), "tetris", "base_link")
+                        #rospy.sleep(0.05)
+                    """
 
          
     ##call tabletop object detection and collision_map_processing 
     #(detects table/objects and adds them to collision map)
     def find_table(self): 
-
         rospy.loginfo("calling tabletop detection")
 
         det_req = TabletopDetectionRequest()
@@ -111,7 +122,7 @@ class TableBroadcaster():
             det_res = self.grasper_detect_srv(det_req)
         except rospy.ServiceException, e:
             rospy.logerr("error when calling %s: %s"%(self.grasper_detect_name, e))
-            self.throw_exception()
+            rospy.signal_shutdown("no table top detection service")
             return None
 
         if det_res.detection.result == det_res.detection.SUCCESS:
@@ -121,7 +132,7 @@ class TableBroadcaster():
         else:
             rospy.logerr("tabletop detection failed with error %s, trying again"%\
                 self.tabletop_detection_result_dict[det_res.detection.result])
-        
+         
             return None
 
 

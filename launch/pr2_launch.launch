@@ -198,6 +198,8 @@
 	  <arg name="sim" value="$(arg sim)"/>
     </include>
 
+  
+  <param name="tabletop_segmentation/x_filter_min" value="0.15"/>
     <!-- Launch default tabletop detector -->
     <include file="$(find tabletop_object_detector)/launch/tabletop_complete.launch">
       <arg name="tabletop_segmentation_points_input" value="$(arg kinect_camera_name)/depth_registered/points"/>
@@ -215,6 +217,7 @@
       <param name="table_thickness" value="0.01" />
     </node>-->
 
+  <param name="tabletop_segmentation/x_filter_min" value="0.1"/>
 
 
     <rosparam file="$(find ee_cart_imped_control)/pr2_arms_cart_imped_controller.yaml" command="load" />

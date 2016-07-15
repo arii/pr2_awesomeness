@@ -21,7 +21,7 @@ class Detector:
     colors={'RED1':RED1, 'RED2':RED2, 'YELLOW':YELLOW, 'ORANGE':ORANGE, 'GREEN':GREEN, 'BLUE': BLUE}
 
     def get_filtered_contours(self,img, contour_type):
-        hsv_img = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+        hsv_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
         if contour_type == "CANNY":
             """
             frame_threshed = cv2.inRange(hsv_img, self.DUCK[0], self.DUCK[1])
@@ -107,7 +107,7 @@ class Detector:
         for area, (cnt, box,  aspect_ratio, mean_color, area) in  green_contours[:2]:
             # plot box around contour
             x,y,w,h = box
-            font = cv2.FONT_HERSHEY_SIMPLEX
+            font = cv2.FONT_HERSHEY_PLAIN
             #cv2.putText(img,"table", (x,y), font, 0.5,mean_color,4)
             cv2.rectangle(img,(x,y),(x+w,y+h), mean_color,1)
             result = cv2.minAreaRect(cnt)
@@ -143,8 +143,15 @@ class Detector:
             font = cv2.FONT_HERSHEY_PLAIN
             cv2.putText(img,"%d,%d,%d"%(R,G,B), (x,y), font, 1.,mean_color,1)
             cv2.rectangle(img,(x,y),(x+w,y+h), mean_color,2)
-            center, (width,height), rotation = cv2.minAreaRect(cnt)
-            results.append(cv2.minAreaRect(cnt))
+            result = cv2.minAreaRect(cnt)
+            center, (width,height), rotation = result
+
+            #XXX for px, py in cv2.cv.BoxPoints(result):
+            #        if px < center[0] and py > center[1]:
+            #            center = int(px), int(py)
+            result = center, (width,height), rotation
+            results.append(result)
+
 
 
         return img, results
@@ -162,7 +169,8 @@ class Echo:
         self.table_pos = None
         self.table= table
         self.thread_lock = threading.Lock()
-        self.frames = ["tetris", "l_gripper_tool_frame", "table"]
+        self.loop = 0
+        self.frames = ["tetris","table", "tetris_new", 'ar_marker_0']# "l_gripper_tool_frame", "table"]
 
         self.sub_cam_info = rospy.Subscriber("/head_mount_kinect/rgb/camera_info",\
         CameraInfo, self.cbCameraInfo)
@@ -170,9 +178,9 @@ class Echo:
         self.pub_image = rospy.Publisher("~echo_image", Image)
         self.pub_poses = rospy.Publisher("~object_poses", PoseArray)
         self.bridge = CvBridge()
-        self.sub_image = rospy.Subscriber("/head_mount_kinect/rgb/image_color",\
+        self.sub_image = rospy.Subscriber("/head_mount_kinect/rgb/image_rect_color",\
         Image, self.cbImage)
-
+        self.transform = None
         rospy.loginfo("[%s] Initialized." %(self.node_name))
 
     def cbCameraInfo(self, msg):
@@ -190,19 +198,20 @@ class Echo:
         if self.camera_info == None: return
         if not self.thread_lock.acquire(False):
             return
-        image_cv = np.array(self.bridge.imgmsg_to_cv(image_msg)[:,:] )
-        if self.table:
-            image_cv = self.broadcast_table(image_cv)
-        #else:
-        image_cv = self.broadcast_objects(image_cv)
-        #image_cv = self.label_frames(image_cv)
-
-        image = cv2.cv.fromarray(image_cv)
         try:
+            image_cv = np.array(self.bridge.imgmsg_to_cv(image_msg)[:,:] )
+            if self.table:
+                image_cv = self.broadcast_table(image_cv)
+            #else:
+            image_cv = self.broadcast_objects(image_cv)
+            image_cv = self.label_frames(image_cv)
+
+            image = cv2.cv.fromarray(image_cv)
             self.pub_image.publish(\
-            self.bridge.cv_to_imgmsg(image, "rgb8"))
-        except CvBridgeError as e:
-            print(e)
+            self.bridge.cv_to_imgmsg(image, "bgr8"))
+        except: 
+            rospy.loginfo("img process fail")
+        rospy.sleep(0.1)
         self.thread_lock.release()
 
 
@@ -217,14 +226,20 @@ class Echo:
                 transform = self.tf_listener.lookupTransform(camera_frame, frame, t)
 
             except:
-                print "could not get transform"
+                pass
+                #print "could not get transform"
                 #rospy.sleep(0.5)
 
             if transform != None:
-                x,y =( int(p) for p in  self.camera.project3dToPixel(transform[0]))
+                self.transform = transform
+            
+            if self.transform != None:
+
+                x,y =( int(p) for p in  self.camera.project3dToPixel(self.transform[0]))
                 cv2.circle(image_cv, (x,y) , 5, (255,0,0), 1)
-                font = cv2.FONT_HERSHEY_SIMPLEX
-                cv2.putText(image_cv,frame,(x,y), font, 1,(255,255,255),2)
+
+                font = cv2.FONT_HERSHEY_PLAIN
+                cv2.putText(image_cv,frame,(x,y), font, 1,(255,255,255),1)
 
         
         return image_cv
@@ -241,7 +256,9 @@ class Echo:
 
     def broadcast_table(self, image_cv):
         image_cv, table_corner, rotation  = self.detector.tetris_bounds(image_cv)
-        if rotation  < -2: rospy.loginfo("table is rotated %s !!"% rotation)
+        self.loop += 1
+        if self.loop%50==0:
+            if rotation  < -2: rospy.loginfo("VISION DETECTION: table is rotated %s !!"% rotation)
         if table_corner != None:
             self.table_pos =  self.pixel_to_base_link(image_cv, table_corner)
             x,y = table_corner
@@ -256,15 +273,15 @@ class Echo:
         for result in results:
             center, (width,height), rotation  = result
             pos = Point(*self.pixel_to_base_link(image_cv, center))
+            pos.z += 0.04
             #q = Quaternion(x=rotation) # placeholder
-            poses.append( Pose(pos, Quaternion(z=1.0)) ) # placeholder)
+            poses.append( Pose(pos, Quaternion(1, 0, 0, 0) )) # placeholder)
         stamped_poses = PoseArray()
         stamped_poses.header.frame_id = "base_link"
         stamped_poses.header.stamp  = rospy.Time(0)
         stamped_poses.poses = poses
         
         self.pub_poses.publish(stamped_poses)
-
 
         return image_cv
 
